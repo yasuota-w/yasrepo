@@ -34,9 +34,9 @@
             padding: 6px 12px;
             border: 1px solid #ccc;
             border-top: none;
-            white-space: pre-wrap; /* 改行を反映 */
-            overflow-y: auto; /* 縦スクロールバーを表示 */
-            max-height: 600px; /* 最大高さを設定 */
+            white-space: pre-wrap;
+            overflow-y: auto;
+            max-height: 600px;
         }
 
         .highlight {
@@ -47,92 +47,92 @@
             background-color: orange;
         }
 
+        .similarity {
+            font-weight: bold;
+            color: red;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h4>ノード検索</h4>
-        <!-- 検索用テキストボックス -->
-        <input type="text" id="searchInput" placeholder="検索..." style="width: 300px;">
-        <!-- 検索ボタン -->
+        <input type="text" id="searchInput" placeholder="検索..." style="width: 400px;">
+        <input type="number" id="thresholdInput" placeholder="類似度閾値（％）" min="0" max="100" value="60">
         <button id="searchButton">検索</button>
+        <div id="similarityDisplay" style="margin-top: 10px;">類似度: <span id="similarityValue"></span>%</div>
+
         <div>
-            <label><input type="radio" name="searchType" value="normal" checked> 通常検索</label>
-            <label><input type="radio" name="searchType" value="fuzzy"> 類似度検索</label>
+            <label><input type="radio" name="searchType" value="normal"> 通常検索</label>
+            <label><input type="radio" name="searchType" value="fuzzy" checked> 類似度検索</label>
         </div>
         <br>
 
         <div id="contentContainer"></div>
-
         <br>
-        <button id="closeButton">閉じる</button> <!-- 閉じるボタン -->
-        <!-- <button id="resetButton">リセット</button>
-        <button id="hilightButton">ハイライト</button> -->
-
-
+        <button id="closeButton">閉じる</button>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.min.js"></script>
 
     <script>
-        // var originCont;
-        
-        // グローバル変数
+        const tabs = document.querySelectorAll('.tabcontent');
+        let currentTabIndex = 0;
         let originalText = '';
-
-        let currentHighlightIndex = -1; // 現在のハイライトインデックスを保持
-
-
+        let currentHighlightIndex = -1;
+        let searchResults = [];
 
         function openTab(evt, tabName) {
-
-            clearHighlight();
-
-            searchTxt = "";
-
-            
-            var i, tabcontent, tablinks;
-            tabcontent = document.getElementsByClassName("tabcontent");
-            for (i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
+            const tabContents = document.getElementsByClassName("tabcontent");
+            for (let i = 0; i < tabContents.length; i++) {
+                tabContents[i].style.display = "none";
             }
-            tablinks = document.getElementsByClassName("tablinks");
-            for (i = 0; i < tablinks.length; i++) {
-                tablinks[i].classList.remove("active"); // " active" を削除する
+            const tabLinks = document.getElementsByClassName("tablinks");
+            for (let i = 0; i < tabLinks.length; i++) {
+                tabLinks[i].classList.remove("active");
             }
-            var tabContentToShow = document.getElementById(tabName); // 対応するタブコンテンツを取得
+            const tabContentToShow = document.getElementById(tabName);
             if (tabContentToShow) {
-                tabContentToShow.style.display = "block"; // 対応するタブを表示する
-                evt.currentTarget.classList.add("active"); // 選択されたタブに "active" クラスを追加する
-            } else {
-                console.error("Tab content not found!"); // タブコンテンツが見つからない場合はエラーをコンソールに出力
+                tabContentToShow.style.display = "block";
+                evt.currentTarget.classList.add("active");
             }
         }
 
-        // // ポップアップがロードされたときにテキストボックスにフォーカスを移動
-        // window.onload = function() {
-        //     document.getElementById('searchInput').focus();
-        // };
+        // function openTab(evt, tabName) {
+        //     const tabContents = document.getElementsByClassName("tabcontent");
+        //     for (let i = 0; i < tabContents.length; i++) {
+        //         tabContents[i].style.display = "none";
+        //     }
+        //     const tabLinks = document.getElementsByClassName("tablinks");
+        //     for (let i = 0; i < tabLinks.length; i++) {
+        //         tabLinks[i].classList.remove("active");
+        //     }
+        //     const tabContentToShow = document.getElementById(tabName);
+        //     if (tabContentToShow) {
+        //         tabContentToShow.style.display = "block";
+        //         if (evt) {
+        //             evt.currentTarget.classList.add("active");
+        //         } else {
+        //             const tabButton = document.querySelector(`button[onclick*="'${tabName}'"]`);
+        //             if (tabButton) {
+        //                 tabButton.classList.add("active");
+        //             }
+        //         }
+        //     }
+        // }
 
         window.addEventListener('message', function(event) {
             if (event.origin !== window.opener.location.origin) {
-                // 安全対策：同一オリジンのみ処理
                 return;
             }
 
             const contentContainer = document.getElementById('contentContainer');
-            const text = event.data;
+            const data = event.data;
 
-            // originCont = text;  // リセット時用に元テキストを保持
+            const text = data.comment;
+            const question = data.question;
+            const flag = data.flag;
 
-            // オリジナルのテキストを保持
             originalText = text;
-
-            
-            // タグで囲まれた部分を抽出する正規表現
-            const regex = /<(\w+)="([^"]+)">([\s\S]*?)<\/\1>/g;
-            let match;
-            let tabIndex = 0;
 
             const tabContainer = document.createElement('div');
             tabContainer.className = 'tab';
@@ -141,40 +141,99 @@
             const tabContentContainer = document.createElement('div');
             contentContainer.appendChild(tabContentContainer);
 
-            while ((match = regex.exec(text)) !== null) {
-                const tagName = match[1];
-                const fileName = match[2];
-                const content = match[3];
 
-                const tabId = 'tab' + tabIndex;
-                const button = document.createElement('button');
-                button.className = 'tablinks';
-                button.textContent = fileName;
-                button.onclick = function(evt) { openTab(evt, tabId); };
-                tabContainer.appendChild(button);
 
-                const tabContent = document.createElement('div');
-                tabContent.id = tabId;
-                tabContent.className = 'tabcontent';
-                tabContent.innerHTML = `<h3>${fileName}</h3><p>${content}</p>`;
-                tabContentContainer.appendChild(tabContent);
+            // フラグによる分岐
+            if(flag === 1){
 
-                tabIndex++;
+                const regex = /<(\w+)="([^"]+)">([\s\S]*?)<\/\1>/g;
+                let match;
+                let tabIndex = 0;
+
+                // const tabContainer = document.createElement('div');
+                // tabContainer.className = 'tab';
+                // contentContainer.appendChild(tabContainer);
+
+                // const tabContentContainer = document.createElement('div');
+                // contentContainer.appendChild(tabContentContainer);
+
+                while ((match = regex.exec(text)) !== null) {
+                    const tagName = match[1];
+                    const fileName = match[2];
+                    const content = match[3];
+
+                    const tabId = 'tab' + tabIndex;
+                    const button = document.createElement('button');
+                    button.className = 'tablinks';
+                    button.textContent = fileName;
+                    button.onclick = function(evt) { openTab(evt, tabId); };
+                    tabContainer.appendChild(button);
+
+                    const tabContent = document.createElement('div');
+                    tabContent.id = tabId;
+                    tabContent.className = 'tabcontent';
+                    tabContent.innerHTML = `<h3>${fileName}</h3><p>${content}</p>`;
+                    tabContentContainer.appendChild(tabContent);
+
+                    tabIndex++;
+                }
+
+                if (tabIndex > 0) {
+                    document.getElementsByClassName("tablinks")[0].click();
+                } else {
+                    contentContainer.innerHTML = `<p>${text}</p>`;
+                }
+
+            }else if (flag === 2){
+
+                const regex = /【ノード情報(\d+)】\n■類似度：[^%]+%\n■ファイル名：([^\n]+)\n([\s\S]*?)(?=【ノード情報\d+】|$)/g;
+                let match;
+                let tabIndex = 0;
+
+                while ((match = regex.exec(text)) !== null) {
+                    const nodeId = match[1];
+                    const fileName = match[2];
+                    const content = match[3];
+                    // const contentLines = match[3].trim().split('\n');
+                    // const content = contentLines.slice(1).join('\n'); // 1行目を除く
+
+                    const tabId = 'tab' + tabIndex;
+                    const button = document.createElement('button');
+                    button.className = 'tablinks';
+                    button.textContent = fileName;
+                    button.onclick = function(evt) { openTab(evt, tabId); };
+                    tabContainer.appendChild(button);
+
+                    const tabContent = document.createElement('div');
+                    tabContent.id = tabId;
+                    tabContent.className = 'tabcontent';
+                    // tabContent.innerHTML = `<h3>${fileName}</h3><p>${content.replace(/\n/g, '<br>')}</p>`;
+                    tabContent.innerHTML = `<h3>${fileName}</h3><p>${content}</p>`;
+                    tabContentContainer.appendChild(tabContent);
+
+                    tabIndex++;
+                }
+
+                if (tabIndex > 0) {
+                    document.getElementsByClassName("tablinks")[0].click();
+                } else {
+                    contentContainer.innerHTML = `<p>${text}</p>`;
+                }
             }
 
-            // 初期表示のタブを設定
-            if (tabIndex > 0) {
-                document.getElementsByClassName("tablinks")[0].click();
-            } else {
-                contentContainer.innerHTML = `<p>${text}</p>`;
-            }
+
+
+
+
+            
 
             document.getElementById('searchInput').focus();
+            document.getElementById('searchInput').value = question;
+            searchNode();
+            searchTxt = question;
 
         }, false);
 
-
-        // resettab 関数
         function resetTab() {
             const tabContentContainer = document.getElementById('contentContainer');
             const regex = /<(\w+)="([^"]+)">([\s\S]*?)<\/\1>/g;
@@ -182,7 +241,6 @@
             let match;
             let tabIndex = 0;
 
-            // オリジナルのテキストから各タブの内容を再セット
             while ((match = regex.exec(originalText)) !== null) {
                 const tagName = match[1];
                 const fileName = match[2];
@@ -198,64 +256,34 @@
             }
         }
 
-
-
-        // 閉じるボタンのクリックイベントを追加
         document.getElementById('closeButton').addEventListener('click', function() {
-            window.close(); // ウィンドウを閉じる
+            window.close();
         });
-
-        // // リセットボタンのクリックイベントを追加
-        // document.getElementById('resetButton').addEventListener('click', function() {
-        //     clearHighlight();
-        //     resetTab();
-        // });
-
-
-        // // リセットボタンのクリックイベントを追加
-        // document.getElementById('hilightButton').addEventListener('click', function() {
-        //     nextHighlight();
-        // });
-
 
         var searchTxt;
 
-        // 検索テキストボックスでEnterキーが押されたときのイベントを追加
         document.getElementById('searchInput').addEventListener('keydown', function(event) {
-
-            var curTxt = document.getElementById('searchInput').value
+            var curTxt = document.getElementById('searchInput').value;
 
             if (event.key === 'Enter') {
-                event.preventDefault(); // デフォルトのEnterキーによるフォーム送信を防止
+                event.preventDefault();
 
-
-                if (curTxt == searchTxt){
-                    // 同じ検索文字列がすでにある
+                if (curTxt == searchTxt) {
                     nextHighlight();
-
-                }else{
-                    // searchTxtと検索テキストボックスの値が異なる
+                } else {
                     resetTab();
                     clearHighlight();
-                    searchNode(); // 検索処理を呼び出す
+                    searchNode();
                     searchTxt = curTxt;
                 }
-
-                
-
             }
         });
 
-
-
-
-        // 検索ボタンのクリックイベントを追加
         document.getElementById('searchButton').addEventListener('click', function() {
             searchNode();
         });
 
-        function searchNode(){
-
+        async function searchNode() {
             var searchType = document.querySelector('input[name="searchType"]:checked').value;
 
             if (searchType === 'normal') {
@@ -267,292 +295,188 @@
                 clearHighlight();
                 fuzzySearch();
             }
-
-
-
-            // var searchText = document.getElementById('searchInput').value.trim(); // 検索テキストを取得し、前後の空白を削除
-            // if (searchText === "") return; // 検索テキストが空の場合は何もしない
-
-            // // テキストを検索してハイライトする関数
-            // function highlightSearchText(text, tabContent) {
-            //     var content = tabContent.innerHTML;
-            //     var highlightedContent = content.replace(new RegExp(searchText, 'gi'), '<span style="background-color: yellow;">$&</span>');
-            //     tabContent.innerHTML = highlightedContent;
-            //     return highlightedContent; // ハイライトされたコンテンツを返す
-            // }
-
-            // // 選択されているタブのコンテンツを取得
-            // var selectedTabContent = document.querySelector('.tabcontent[style="display: block;"]');
-            // if (!selectedTabContent) return; // 選択されているタブがない場合は何もしない
-
-            // var originalContent = selectedTabContent.getAttribute('data-original-content'); // オリジナルのコンテンツを取得
-            // if (!originalContent) {
-            //     originalContent = selectedTabContent.innerHTML; // オリジナルのコンテンツがない場合は現在のコンテンツを保存
-            //     selectedTabContent.setAttribute('data-original-content', originalContent); // オリジナルのコンテンツを属性として保存
-            // }
-
-            // var highlightedContent = highlightSearchText(searchText, selectedTabContent); // ハイライト処理を実行
-
-            // // ハイライトされた箇所にスクロールする
-            // var highlightedElements = selectedTabContent.querySelectorAll('span[style="background-color: yellow;"]');
-            // if (highlightedElements.length > 0) {
-            //     highlightedElements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // }
         }
 
-        
         function normalSearch() {
             var searchText = document.getElementById('searchInput').value.trim();
             if (searchText === "") return;
 
             function highlightSearchText(text, tabContent) {
                 var content = tabContent.innerHTML;
-                // var highlightedContent = content.replace(new RegExp(searchText, 'gi'), '<span style="background-color: yellow;">$&</span>');
                 var highlightedContent = content.replace(new RegExp(text, 'gi'), '<span class="highlight">$&</span>');
                 tabContent.innerHTML = highlightedContent;
                 return highlightedContent;
             }
 
-            var selectedTabContent = document.querySelector('.tabcontent[style="display: block;"]');
-            if (!selectedTabContent) return;
+            var tabContents = document.querySelectorAll('.tabcontent');
+            searchResults = [];
+            tabContents.forEach((tabContent, index) => {
+                var originalContent = tabContent.getAttribute('data-original-content');
+                if (!originalContent) {
+                    originalContent = tabContent.innerHTML;
+                    tabContent.setAttribute('data-original-content', originalContent);
+                }
 
-            var originalContent = selectedTabContent.getAttribute('data-original-content');
-            if (!originalContent) {
-                originalContent = selectedTabContent.innerHTML;
-                selectedTabContent.setAttribute('data-original-content', originalContent);
-            }
+                var highlightedContent = highlightSearchText(searchText, tabContent);
+                var highlightedElements = tabContent.querySelectorAll('span.highlight');
+                if (highlightedElements.length > 0) {
+                    searchResults.push(...highlightedElements);
+                }
+            });
 
-            var highlightedContent = highlightSearchText(searchText, selectedTabContent);
-
-            // var highlightedElements = selectedTabContent.querySelectorAll('span[style="background-color: yellow;"]');
-            var highlightedElements = selectedTabContent.querySelectorAll('span.highlight');
-            if (highlightedElements.length > 0) {
-                // highlightedElements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-
+            if (searchResults.length > 0) {
                 currentHighlightIndex = -1;
                 nextHighlight();
-
             }
         }
 
-        // function fuzzySearch() {
-        //     var searchText = document.getElementById('searchInput').value.trim();
-        //     if (searchText === "") return;
-
-        //     var selectedTabContent = document.querySelector('.tabcontent[style="display: block;"]');
-        //     if (!selectedTabContent) return;
-
-        //     var content = selectedTabContent.innerText;
-        //     var data = content.split(/\s+/).map(word => ({ text: word }));
-
-        //     var options = {
-        //         includeScore: true,
-        //         keys: ['text']
-        //     };
-        //     var fuse = new Fuse(data, options);
-        //     var result = fuse.search(searchText);
-
-        //     var highlightedContent = content;
-        //     result.forEach(item => {
-        //         var term = item.item.text;
-        //         var regex = new RegExp(term, 'gi');
-        //         highlightedContent = highlightedContent.replace(regex, '<span class="highlight">$&</span>');
-        //     });
-
-        //     selectedTabContent.innerHTML = highlightedContent;
-
-        //     var highlightedElements = selectedTabContent.querySelectorAll('span.highlight');
-        //     if (highlightedElements.length > 0) {
-        //         currentHighlightIndex = -1;
-        //         nextHighlight();
-        //     }
-        // }
-
-
-        // 正規表現のメタ文字をエスケープする関数
+        // 正規表現の特殊文字をエスケープする関数
         function escapeRegExp(string) {
-            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& はマッチした文字列全体を指す
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
-
-        // function fuzzySearch() {
-        //     var searchText = document.getElementById('searchInput').value.trim();
-        //     if (searchText === "") return;
-
-        //     var selectedTabContent = document.querySelector('.tabcontent[style="display: block;"]');
-        //     if (!selectedTabContent) return;
-
-        //     var content = selectedTabContent.innerText;
-        //     // var data = content.split(/\s+/).map(word => ({ text: word }));
-        //     var data = content.split(/\s+/).filter(word => word !== '').map(word => ({ text: word }));
-
-        //     var options = {
-        //         includeScore: true,
-        //         keys: ['text']
-        //     };
-        //     var fuse = new Fuse(data, options);
-        //     var result = fuse.search(searchText);
-
-        //     var highlightedContent = content;
-        //     result.forEach(item => {
-        //         var term = escapeRegExp(item.item.text); // メタ文字をエスケープ
-        //         var regex = new RegExp(term, 'gi');
-        //         highlightedContent = highlightedContent.replace(regex, '<span class="highlight">$&</span>');
-        //     });
-            
-        //     selectedTabContent.setAttribute('data-original-content', content); // 新しく追加
-
-        //     selectedTabContent.innerHTML = highlightedContent;
-
-        //     var highlightedElements = selectedTabContent.querySelectorAll('span.highlight');
-        //     if (highlightedElements.length > 0) {
-        //         currentHighlightIndex = -1;
-        //         nextHighlight();
-        //     }
-        // }
-
 
         function fuzzySearch() {
             var searchText = document.getElementById('searchInput').value.trim();
+            var threshold = (100 - document.getElementById('thresholdInput').value)/100;
+
             if (searchText === "") return;
 
-            var selectedTabContent = document.querySelector('.tabcontent[style="display: block;"]');
-            if (!selectedTabContent) return;
+            var tabContents = document.querySelectorAll('.tabcontent');
+            searchResults = []; // 検索結果を格納する配列を初期化
 
-            var content = selectedTabContent.innerHTML; // 修正: innerText ではなく innerHTML を使用
-            var data = content.split(/\s+/).filter(word => word !== '').map(word => ({ text: word }));
+            tabContents.forEach((tabContent, index) => {
+                var content = tabContent.innerHTML; // タブコンテンツのHTMLを取得
+                // タブコンテンツの内容を単語に分割し、空でない単語を抽出してオブジェクトに変換
+                var data = content.split(/\s+/).filter(word => word !== '').map(word => ({ text: word }));
 
-            var options = {
-                includeScore: true,
-                keys: ['text']
-            };
-            var fuse = new Fuse(data, options);
-            var result = fuse.search(searchText);
+                var options = {
+                    includeScore: true,     // 検索結果にスコアを含める
+                    distance: 1000,         // 調整ポイント
+                    keys: ['text']          // 検索対象のキーを指定
+                };
 
-            var highlightedContent = content;
-            
-            result.forEach(item => {
-                var term = escapeRegExp(item.item.text); // メタ文字をエスケープ
-                var regex = new RegExp(term, 'gi');
-                highlightedContent = highlightedContent.replace(regex, (match, offset, string) => {
-                    // 既にハイライトされている部分をスキップ
-                    if (string.slice(offset - 6, offset) === '<span>' || string.slice(offset - 20, offset) === '<span class="highlight">') {
-                        return match;
-                    } else {
-                        return '<span class="highlight">' + match + '</span>';
+                var fuse = new Fuse(data, options);
+                var result = fuse.search(searchText);
+
+                // 類似度の高い順にソート
+                result.sort((a, b) => a.score - b.score);
+
+                var highlightedContent = content; 
+
+                result.forEach(item => {
+                    if (item.score <= threshold) { // n%以上の一致度
+                        var term = escapeRegExp(item.item.text); // 検索結果の単語を正規表現用にエスケープ
+                        var regex = new RegExp(term, 'gi'); // 大文字小文字を区別せずに全体一致する正規表現を作成
+                        
+                        highlightedContent = highlightedContent.replace(regex, (match, offset, string) => {
+
+                            // 既存のハイライトをチェックしてスキップ
+                            var beforeMatch = string.slice(offset - 20, offset);
+                            var afterMatch = string.slice(offset + match.length, offset + match.length + 20);
+                            if (beforeMatch.includes('highlight') || afterMatch.includes('</span>')) {
+                                return match;
+                            } else {
+                                return '<span class="highlight" data-similarity="' + (1 - item.score) + '">' + match + '</span>';
+                            }
+
+                            // // 既にハイライトされている場合はそのまま、そうでなければハイライトを追加
+                            // if (string.slice(offset - 6, offset) === '<span>' || string.slice(offset - 20, offset) === '<span class="highlight">') {
+                            //     return match;
+                            // } else {
+                            //     // return '<span class="highlight">' + match + '</span>';
+                            //     return '<span class="highlight" data-similarity="' + (1 - item.score) + '">' + match + '</span>';
+                            // }
+
+                        });
                     }
                 });
+
+                tabContent.setAttribute('data-original-content', content);
+                tabContent.innerHTML = highlightedContent;
+
+                var highlightedElements = tabContent.querySelectorAll('span.highlight');
+                if (highlightedElements.length > 0) {
+                    searchResults.push(...highlightedElements);
+                }
             });
 
-            selectedTabContent.setAttribute('data-original-content', content);
-            selectedTabContent.innerHTML = highlightedContent;
 
-            var highlightedElements = selectedTabContent.querySelectorAll('span.highlight');
-            if (highlightedElements.length > 0) {
+            //　上から順ソート版
+
+            // // 検索結果が存在する場合、最初のハイライトに移動
+            // if (searchResults.length > 0) {
+            //     currentHighlightIndex = -1; // 現在のハイライトインデックスを初期化
+            //     nextHighlight(); // 次のハイライトに移動
+            // }
+
+
+            // 類似度ソート版
+            if (searchResults.length > 0) {
+                // 検索結果を類似度の高い順にソート
+                searchResults.sort((a, b) => {
+                    return parseFloat(b.getAttribute('data-similarity')) - parseFloat(a.getAttribute('data-similarity'));
+                });
+
                 currentHighlightIndex = -1;
                 nextHighlight();
             }
+
+
         }
-
-
-
-
-
-
-
-
-
-        // function clearHighlight() {
-        //     var selectedTabContent = document.querySelector('.tabcontent[style="display: block;"]');
-        //     if (!selectedTabContent) return;
-
-        //     var originalContent = selectedTabContent.getAttribute('data-original-content');
-        //     if (originalContent) {
-        //         selectedTabContent.innerHTML = originalContent;
-        //     }
-        // }
-
 
         function clearHighlight() {
-            var selectedTabContent = document.querySelector('.tabcontent[style="display: block;"]');
-            if (!selectedTabContent) return;
-
-            var originalContent = selectedTabContent.getAttribute('data-original-content');
-            if (originalContent) {
-                selectedTabContent.innerHTML = originalContent;
-            }
+            const tabContents = document.querySelectorAll('.tabcontent');
+            tabContents.forEach(tabContent => {
+                const originalContent = tabContent.getAttribute('data-original-content');
+                if (originalContent) {
+                    tabContent.innerHTML = originalContent;
+                }
+            });
         }
 
-
-        // function nextHighlight() {
-        //     var selectedTabContent = document.querySelector('.tabcontent[style="display: block;"]');
-        //     if (!selectedTabContent) return;
-
-        //     var highlightedElements = selectedTabContent.querySelectorAll('span[style="background-color: yellow;"]');
-        //     if (highlightedElements.length === 0) return;
-
-        //     currentHighlightIndex++;
-        //     if (currentHighlightIndex >= highlightedElements.length) {
-        //         currentHighlightIndex = 0;
-        //     }
-
-        //     var currentElement = highlightedElements[currentHighlightIndex];
-        //     currentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // }
-
         function nextHighlight() {
-            var selectedTabContent = document.querySelector('.tabcontent[style="display: block;"]');
-            if (!selectedTabContent) return;
-
-            var highlightedElements = selectedTabContent.querySelectorAll('span.highlight');
-            if (highlightedElements.length === 0) return;
+            if (searchResults.length === 0) return;
 
             if (currentHighlightIndex !== -1) {
-                highlightedElements[currentHighlightIndex].classList.remove('current-highlight');
+                searchResults[currentHighlightIndex].classList.remove('current-highlight');
             }
 
             currentHighlightIndex++;
-            if (currentHighlightIndex >= highlightedElements.length) {
+            if (currentHighlightIndex >= searchResults.length) {
                 currentHighlightIndex = 0;
             }
 
-            var currentElement = highlightedElements[currentHighlightIndex];
+            const currentElement = searchResults[currentHighlightIndex];
+            const tabContent = currentElement.closest('.tabcontent');
+            if (!tabContent) return;
+
+            const tabId = tabContent.id;
+            const tabIndex = tabId.match(/\d+/)[0]; // tabIdから数字部分を抽出
+
+            //タブ選択イベント呼び出し
+            document.getElementsByClassName("tablinks")[tabIndex].click();
+
             currentElement.classList.add('current-highlight');
             currentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // 類似度を表示
+            const similarityValue = searchResults[currentHighlightIndex].getAttribute('data-similarity');
+            document.getElementById('similarityValue').innerText = similarityValue ? (similarityValue * 100).toFixed(2) : 'N/A';
+            
         }
 
-        // ラジオボタン要素に変更イベントリスナーを追加
-        var radioButtons = document.getElementsByName('searchType');
-        for (var i = 0; i < radioButtons.length; i++) {
+        const radioButtons = document.getElementsByName('searchType');
+        for (let i = 0; i < radioButtons.length; i++) {
             radioButtons[i].addEventListener('change', handleRadioChange);
         }
 
         function handleRadioChange() {
-
-            // ラジオボタン要素を取得
-            var radioButtons = document.getElementsByName('searchType');
-            
-            // 選択されたラジオボタンの値を取得
-            var selectedValue;
-
-            for (var i = 0; i < radioButtons.length; i++) {
-                if (radioButtons[i].checked) {
-                    selectedValue = radioButtons[i].value;
-                    break;
-                }
-            }
-            
-            // 選択された値をコンソールに表示
-            console.log('選択された値:', selectedValue);
-
             resetTab();
             clearHighlight();
             searchTxt = "";
 
-
+            document.getElementById('similarityValue').innerText = "";
         }
-
-
-
 
     </script>
 </body>
