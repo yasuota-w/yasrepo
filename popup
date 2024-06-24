@@ -55,20 +55,22 @@
 </head>
 <body>
     <div class="container">
-        <h4>ノード検索</h4>
-        <input type="text" id="searchInput" placeholder="検索..." style="width: 400px;">
-        <input type="number" id="thresholdInput" placeholder="類似度閾値（％）" min="0" max="100" value="60">
-        <button id="searchButton">検索</button>
-        <div id="similarityDisplay" style="margin-top: 10px;">類似度: <span id="similarityValue"></span>%</div>
-
-        <div>
+        <b>■検索</b>
+        <div style="margin-bottom: 10px;">
+            <input type="text" id="searchInput" placeholder="検索..." style="width: 400px;">
+            <button id="searchButton">検索</button>
+        </div>
+        <div style="margin-bottom: 10px;">
+            類似度
+            <input type="number" id="thresholdInput" placeholder="類似度閾値（％）" min="0" max="100" value="60"style="width: 40px;">
+            %以上
+            <div id="similarityDisplay" style="display: inline-block; margin-left: 10px;">　類似度: <span id="similarityValue"></span>%</div>
+        </div>
+        <div style="margin-bottom: 10px;">
             <label><input type="radio" name="searchType" value="normal"> 通常検索</label>
             <label><input type="radio" name="searchType" value="fuzzy" checked> 類似度検索</label>
         </div>
-        <br>
-
-        <div id="contentContainer"></div>
-        <br>
+        <div id="contentContainer" style="margin-bottom: 10px;"></div>
         <button id="closeButton">閉じる</button>
     </div>
 
@@ -403,23 +405,23 @@
 
             //　上から順ソート版
 
-            // // 検索結果が存在する場合、最初のハイライトに移動
-            // if (searchResults.length > 0) {
-            //     currentHighlightIndex = -1; // 現在のハイライトインデックスを初期化
-            //     nextHighlight(); // 次のハイライトに移動
-            // }
-
-
-            // 類似度ソート版
+            // 検索結果が存在する場合、最初のハイライトに移動
             if (searchResults.length > 0) {
-                // 検索結果を類似度の高い順にソート
-                searchResults.sort((a, b) => {
-                    return parseFloat(b.getAttribute('data-similarity')) - parseFloat(a.getAttribute('data-similarity'));
-                });
-
-                currentHighlightIndex = -1;
-                nextHighlight();
+                currentHighlightIndex = -1; // 現在のハイライトインデックスを初期化
+                nextHighlight(); // 次のハイライトに移動
             }
+
+
+            // // 類似度ソート版
+            // if (searchResults.length > 0) {
+            //     // 検索結果を類似度の高い順にソート
+            //     searchResults.sort((a, b) => {
+            //         return parseFloat(b.getAttribute('data-similarity')) - parseFloat(a.getAttribute('data-similarity'));
+            //     });
+
+            //     currentHighlightIndex = -1;
+            //     nextHighlight();
+            // }
 
 
         }
