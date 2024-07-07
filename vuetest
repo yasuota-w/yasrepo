@@ -1,0 +1,41 @@
+swapメモリ設定					
+					
+sudo fallocate -l 2G /swapfile					
+sudo chmod 600 /swapfile					
+sudo mkswap /swapfile					
+sudo swapon /swapfile					
+sudo swapon --show					
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab					
+npm install					
+					
+					
+					
+Node.js　version18インストール方法					
+					
+https://repost.aws/ja/questions/QUvkkhY--uTiSDkS6R1jFnZQ/node-js-18-on-amazon-linux-2?sc_ichannel=ha&sc_ilang=en&sc_isite=repost&sc_iplace=hp&sc_icontent=QUvkkhY--uTiSDkS6R1jFnZQ&sc_ipos=17					
+					
+					
+wget -nv https://d3rnber7ry90et.cloudfront.net/linux-x86_64/node-v18.17.1.tar.gz					
+sudo mkdir -p /usr/local/lib/node					
+					
+tar -xf node-v18.17.1.tar.gz					
+sudo mv node-v18.17.1 /usr/local/lib/node/nodejs					
+					
+echo "export NVM_DIR=''" >> /home/ec2-user/.bashrc					
+echo "export NODEJS_HOME=/usr/local/lib/node/nodejs" >> /home/ec2-user/.bashrc					
+echo "export PATH=\$NODEJS_HOME/bin:\$PATH" >> /home/ec2-user/.bashrc					
+					
+. /home/ec2-user/.bashrc					
+					
+node -e "console.log('Running Node.js ' + process.version)"					
+					
+npm install					
+					
+					
+					
+					
+					
+					
+cloud9でamplify　説明サイト					
+https://blog.usize-tech.com/amplify-start-in-cloud9/					
+					
