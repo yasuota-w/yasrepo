@@ -1,0 +1,287 @@
+HomePage.vue
+
+<template>
+  <div>
+    <h2>Home Page</h2>
+    <button @click="goToAbout">Go to About</button>
+    <button @click="handleLogout">Logout</button>
+  </div>
+</template>
+
+<script>
+import { signOut } from '@/services/authService';
+
+export default {
+  name: 'HomePage',
+  methods: {
+    goToAbout() {
+      this.$router.push({ name: 'AboutPage' });
+    },
+    handleLogout() {
+      signOut();
+      this.$router.push({ name: 'LoginPage' });
+    }
+  }
+};
+</script>
+
+<style scoped>
+/* 必要に応じてスタイルを追加 */
+</style>
+
+
+LoginPage.vue
+
+
+<template>
+  <div>
+    <h2>Login</h2>
+    <form @submit.prevent="handleLogin">
+      <label for="email">Email</label>
+      <input v-model="email" type="email" id="email" required>
+      
+      <label for="password">Password</label>
+      <input v-model="password" type="password" id="password" required>
+      
+      <button type="submit">Login</button>
+    </form>
+    <div v-if="error">{{ error }}</div>
+  </div>
+</template>
+
+<script>
+import { signIn } from '@/services/authService';
+import AWS from 'aws-sdk';
+
+export default {
+  name: 'LoginPage',
+  data() {
+    return {
+      email: '',
+      password: '',
+      error: ''
+    };
+  },
+  methods: {
+    async handleLogin() {
+      try {
+        const result = await signIn(this.email, this.password);
+        console.log('Login successful:', result);
+        console.log('AWS credentials:', AWS.config.credentials);
+        this.$router.push({ name: 'HomePage' });
+      } catch (error) {
+        this.error = error.message;
+      }
+    }
+  }
+};
+</script>
+
+<style scoped>
+/* 必要に応じてスタイルを追加 */
+</style>
+
+AboutPage.vue
+
+
+<template>
+  <div>
+    <h2>About Page</h2>
+    <p>This is the About page content.</p>
+    <button @click="goToHome">Go to Home</button>
+  </div>
+</template>
+
+<script>
+import { isAuthenticated } from '@/services/authService';
+
+export default {
+  name: 'AboutPage',
+  methods: {
+    async goToHome() {
+      try {
+        const auth = await isAuthenticated();
+        if (auth) {
+          this.$router.push({ name: 'HomePage' });
+        } else {
+          this.$router.push({ name: 'LoginPage' });
+        }
+      } catch (error) {
+        console.error('Error checking authentication:', error);
+      }
+    }
+  }
+};
+</script>
+
+<style scoped>
+/* 必要に応じてスタイルを追加 */
+</style>
+
+
+
+router/index.js
+
+import { createRouter, createWebHistory } from 'vue-router';
+import HomePage from '@/components/HomePage.vue';
+import LoginPage from '@/components/LoginPage.vue';
+import AboutPage from '@/components/AboutPage.vue';
+import { isAuthenticated } from '@/services/authService';
+
+const routes = [
+  { path: '/', name: 'HomePage', component: HomePage, meta: { requiresAuth: true } },
+  { path: '/login', name: 'LoginPage', component: LoginPage },
+  { path: '/about', name: 'AboutPage', component: AboutPage, meta: { requiresAuth: true } }
+];
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes,
+});
+
+router.beforeEach(async (to, from, next) => {
+  if (to.matched.some(record => record.meta.requiresAuth)) {
+    try {
+      const auth = await isAuthenticated();
+      if (auth) {
+        next();
+      } else {
+        next({ name: 'LoginPage' });
+      }
+    } catch (error) {
+      console.error('Error checking authentication:', error);
+      next({ name: 'LoginPage' });
+    }
+  } else {
+    next();
+  }
+});
+
+export default router;
+
+services/authService.js
+
+import { CognitoUserPool, CognitoUser, AuthenticationDetails } from 'amazon-cognito-identity-js';
+import AWS from 'aws-sdk';
+
+// AWS SDKのリージョンを設定
+AWS.config.update({ region: 'ap-northeast-1' });  // ここにリージョンを設定
+
+const poolData = {
+    UserPoolId: '', // ユーザープールID
+    ClientId: '' // アプリクライアントID
+};
+
+
+
+const userPool = new CognitoUserPool(poolData);
+const identityPoolId = ''; // IDプールID
+
+export const signUp = (email, password) => {
+    return new Promise((resolve, reject) => {
+        userPool.signUp(email, password, [], null, (err, result) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(result.user);
+            }
+        });
+    });
+};
+
+export const signIn = (email, password) => {
+    return new Promise((resolve, reject) => {
+        const authenticationDetails = new AuthenticationDetails({
+            Username: email,
+            Password: password,
+        });
+
+        const userData = {
+            Username: email,
+            Pool: userPool,
+        };
+
+        const cognitoUser = new CognitoUser(userData);
+        cognitoUser.authenticateUser(authenticationDetails, {
+            onSuccess: (result) => {
+                const logins = {
+                    [`cognito-idp.${AWS.config.region}.amazonaws.com/${poolData.UserPoolId}`]: result.getIdToken().getJwtToken()
+                };
+                
+                AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+                    IdentityPoolId: identityPoolId,
+                    Logins: logins
+                });
+
+                AWS.config.credentials.refresh((error) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(result);
+                    }
+                });
+            },
+            onFailure: (err) => {
+                reject(err);
+            },
+        });
+    });
+};
+
+export const isAuthenticated = () => {
+    const cognitoUser = userPool.getCurrentUser();
+    if (!cognitoUser) {
+        return false;
+    }
+
+    return new Promise((resolve, reject) => {
+        cognitoUser.getSession((err, session) => {
+            if (err || !session.isValid()) {
+                reject(false);
+            } else {
+                resolve(true);
+            }
+        });
+    });
+};
+
+export const signOut = () => {
+    const cognitoUser = userPool.getCurrentUser();
+    if (cognitoUser) {
+        cognitoUser.signOut();
+    }
+};
+
+
+
+
+
+App.vue
+
+<template>
+  <div id="app">
+    <router-view></router-view>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'App'
+};
+</script>
+
+<style>
+/* 必要に応じてスタイルを追加 */
+</style>
+
+
+main.js
+
+import { createApp } from 'vue';
+import App from './App.vue';
+import router from './router';
+
+const app = createApp(App);
+
+app.use(router);
+app.mount('#app');
