@@ -172,10 +172,7 @@ const poolData = {
     ClientId: '' // アプリクライアントID
 };
 
-        // region: 'ap-northeast-1', // e.g., 'us-east-1'
-        // userPoolId: 'ap-northeast-1_FuSgmqpKe',
-        // userPoolWebClientId: '6r2e7pfpkf4i84hkei4e5u80h7',
-        // identityPoolId: 'ap-northeast-1:281c9498-3150-49c7-b40a-d1b620460251', // 必要に応じて
+
 
 const userPool = new CognitoUserPool(poolData);
 const identityPoolId = ''; // IDプールID
