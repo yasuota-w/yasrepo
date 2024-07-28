@@ -1,0 +1,60 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:logs:ap-northeast-1:999999999999:log-group:/aws/codebuild/NantokaBuildPrj-test",
+                "arn:aws:logs:ap-northeast-1:999999999999:log-group:/aws/codebuild/NantokaBuildPrj-test:*"
+            ],
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:s3:::codepipeline-ap-northeast-1-*"
+            ],
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:GetObjectVersion",
+                "s3:GetBucketAcl",
+                "s3:GetBucketLocation"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "codebuild:CreateReportGroup",
+                "codebuild:CreateReport",
+                "codebuild:UpdateReport",
+                "codebuild:BatchPutTestCases",
+                "codebuild:BatchPutCodeCoverages"
+            ],
+            "Resource": [
+                "arn:aws:codebuild:ap-northeast-1:999999999999:report-group/NantokaBuildPrj-test-*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "lambda:CreateFunction",
+                "lambda:UpdateFunctionCode"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "codecommit:GetBranch",
+                "codecommit:GetCommit",
+                "codecommit:ListBranches"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
