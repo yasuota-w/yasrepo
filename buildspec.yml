@@ -1,0 +1,76 @@
+version: 0.2
+
+env:
+  variables:
+    REPOSITORY_NAME: "nantokatokyo" # リポジトリ名を指定
+    BRANCH_NAME: "master"             # masterブランチを指定
+    
+phases:
+  pre_build:
+    commands:
+      - echo Pre-build started on `date`
+      
+      - |
+        COMMIT_ID=$(aws codecommit get-branch --repository-name $REPOSITORY_NAME --branch-name $BRANCH_NAME --query 'branch.commitId' --output text)
+        echo "Latest Commit ID: $COMMIT_ID"
+        COMMIT_MESSAGE=$(aws codecommit get-commit --repository-name $REPOSITORY_NAME --commit-id $COMMIT_ID --query 'commit.message' --output text)
+        echo "Commit Message: $COMMIT_MESSAGE"
+
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo "Checking for modified Lambda functions..."
+
+      # zipファイルを保存するディレクトリを作成
+      - mkdir -p lambda_artifacts
+  
+      # lambda_artifactsディレクトリの絶対パスを出力
+      - |
+        LAMBDA_ARTIFACTS_PATH=$(pwd)/lambda_artifacts
+        echo "Lambda artifacts directory: $LAMBDA_ARTIFACTS_PATH"
+
+      - |
+        for dir in dev/lambda/*; do
+          if [ -d "$dir" ]; then
+            
+            FUNCTION_NAME=$(basename "$dir")
+            echo "Packaging function $FUNCTION_NAME"
+
+            ABS_PATH=$(pwd)/lambda_artifacts/${FUNCTION_NAME}.zip
+            
+            (
+              cd "$dir"
+              echo "Current directory inside loop: $(pwd)"
+              zip -r "$ABS_PATH" ./*
+            )
+            
+            echo "Packaged ${FUNCTION_NAME}.zip in the lambda_artifacts directory"
+            
+            if [ -f "$ABS_PATH" ]; then
+              echo "${FUNCTION_NAME}.zip was successfully created."
+            else
+              echo "Error: ${FUNCTION_NAME}.zip was not created."
+            fi
+
+          fi
+        done
+
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      
+      - echo "Deploying Lambda functions..."
+
+      - |
+        for dir in dev/lambda/*; do
+          if [ -d "$dir" ]; then
+            FUNCTION_NAME=$(basename "$dir")
+            echo "Deploying function $FUNCTION_NAME"
+            aws lambda update-function-code --function-name "$FUNCTION_NAME" --zip-file "fileb://lambda_artifacts/${FUNCTION_NAME}.zip"
+          fi
+        done
+
+artifacts:
+  files:
+    - 'dev/lambda/**/*'
