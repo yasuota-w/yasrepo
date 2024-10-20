@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>DASHMIN - Bootstrap Admin Template</title>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="" name="keywords">
+    <meta content="" name="description">
+
+    <!-- Favicon -->
+    <link href="img/favicon.ico" rel="icon">
+
+    <!-- Google Web Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icon Font Stylesheet -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.10.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Libraries Stylesheet -->
+    <link href="lib/owlcarousel/assets/owl.carousel.min.css" rel="stylesheet">
+    <link href="lib/tempusdominus/css/tempusdominus-bootstrap-4.min.css" rel="stylesheet" />
+
+    <!-- Customized Bootstrap Stylesheet -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Template Stylesheet -->
+    <link href="css/style.css" rel="stylesheet">
+
+    <!-- Cognito -->
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.2.0/dist/amazon-cognito-identity.min.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1037.0.min.js"></script>
+
+
+    <style>
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+        }
+
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+        }
+
+        .tab button:hover {
+            background-color: #ddd;
+        }
+
+        .tab button.active {
+            background-color: #ccc;
+        }
+
+        .tabcontent {
+            display: none;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+
+
+
+
+
+
+        /* 以下、このページのみの設定値 */
+        
+        /* 行表示色設定 */
+        .custom-light-blue {
+            background-color: #aeefff; /* 薄い水色 */
+        }
+
+        /* Utterance用の入力フィールドの見た目調整 */
+        .utterance-input {
+            border: none;            /* 枠線を消去 */
+            background-color: transparent; /* 背景を透明に */
+            padding: 0;              /* 余白をなくす */
+            height: auto;            /* 高さを自動調整 */
+            line-height: 1.5;        /* テキストの高さを他の列と一致させる */
+            font-size: inherit;      /* フォントサイズを親要素に合わせる */
+            width: 100%;             /* テーブルセルにフィット */
+        }
+
+        .utterance-input:focus {
+            outline: none;           /* フォーカス時の青いアウトラインを消す */
+        }
+
+
+        /* CSVインポート結果表示テーブル設定 */
+        .table-responsive {
+            max-height: 400px; /* 縦幅を300pxに固定 */
+            overflow-y: auto;  /* 縦スクロールバーを表示 */
+        }
+
+
+
+
+    </style>
+</head>
+
+<script>
+    // グローバル変数としてIDトークンを格納
+    let idToken = null;
+
+    const poolData = {
+        UserPoolId: 'ap-northeast-1_AAAAA',     // 例: 'us-east-1_xxxxxxxxx'
+        ClientId: '98989898989898'      // 例: 'xxxxxxxxxxxxxxxxxxxxxxxxxx'
+    };
+    const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+
+    // ページ読み込み時にログイン確認
+    window.onload = function () {
+        const cognitoUser = userPool.getCurrentUser();
+        if (!cognitoUser) {
+            alert('ログインが必要です。');
+            window.location.href = 'signin.html';  // ログインページにリダイレクト
+        } else {
+            // IDトークンを取得して変数に格納
+            cognitoUser.getSession((err, session) => {
+                if (err) {
+                    console.error('セッション取得エラー:', err);
+                    alert('セッション取得に失敗しました。');
+                    return;
+                }
+                idToken = session.getIdToken().getJwtToken(); // IDトークンを格納
+                console.log(idToken);
+            });
+        }
+    };
+
+    function logout() {
+        const cognitoUser = userPool.getCurrentUser();
+        if (cognitoUser) {
+            cognitoUser.signOut();
+            alert('ログアウトしました。');
+            // 必要に応じて、リダイレクト先のURLを設定することができます。
+            window.location.href = 'signin.html'; // ログアウト後の遷移先
+        } else {
+            alert('ログインしているユーザーが見つかりません。');
+        }
+    }
+
+    function testApi(){
+        alert('テスト開始します。');
+
+        const apiurl = 'https://nantoka.execute-api.ap-northeast-1.amazonaws.com/dev/getinfo'
+
+        const data = {
+            'bucket_name': 'aaaa',
+            'folder_path': 'bbbb',
+        }
+
+        // AJAXリクエストを送信
+        $.ajax({
+            url: apiurl,
+            type: 'POST',
+            dataType: 'json',
+            contentType: 'application/json', // JSON形式で送信
+            data: JSON.stringify(data), 
+            headers: {
+                'Authorization': idToken // IDトークンをAuthorizationヘッダーに追加
+            }
+        })
+        .done(function(response) {
+            let item = '';
+            item = response.Items;
+
+            const data_json = JSON.parse(JSON.stringify(response));
+            const text = data_json.result;
+
+            alert(text);
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error('AJAXエラー:', jqXHR);
+            alert('エラー発生: ' + textStatus + '\n' + errorThrown);
+        });
+
+    }
+
+
+    // CSVインポート処理
+    function importCSV() {
+        const fileInput = document.getElementById('formFile');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert('CSVファイルを選択してください。');
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+            const content = e.target.result;
+            const data = parseCSV(content);
+            displayTable(data);
+        };
+
+        reader.readAsText(file);
+    }
+
+    // CSVの内容を解析
+    function parseCSV(content) {
+        const lines = content.trim().split('\n');
+        const headers = lines[0].split(','); // 1行目をヘッダーとして取得
+        const rows = lines.slice(1).map((line, index) => {
+            const columns = line.split(',');
+            return { index: index + 1, columns };
+        });
+
+        return { headers, rows };
+    }
+    function displayTable({ headers, rows }) {
+    const thead = document.getElementById('csvResultTable').querySelector('thead');
+    const tbody = document.getElementById('csvResultTable').querySelector('tbody');
+
+    // ヘッダーを表示
+    thead.innerHTML = `
+        <tr>
+            <th style="width: 50px;">#</th> <!-- 幅を固定 -->
+            ${headers.map(header => `<th>${header}</th>`).join('')}
+        </tr>
+    `;
+
+    // ボディを表示（utterance列を編集可能に）
+    tbody.innerHTML = rows.map(row => {
+        const speakerIndex = headers.indexOf('speaker');
+        const utteranceIndex = headers.indexOf('utterance');
+        const speaker = row.columns[speakerIndex];
+
+        // 'customer' の場合は薄い水色
+        const rowClass = speaker === 'customer' ? 'custom-light-blue' : '';
+
+        return `
+            <tr class="${rowClass}">
+                <td>${row.index}</td>
+                ${row.columns.map((column, colIndex) =>
+                    colIndex === utteranceIndex
+                        ? `<td><input type="text" value="${column}" class="utterance-input" /></td>`
+                        : `<td>${column}</td>`
+                ).join('')}
+            </tr>
+        `;
+    }).join('');
+
+    // 各列の幅を自動調整
+    adjustColumnWidths(headers, rows);
+}
+
+// // 各列の幅を調整する関数
+// function adjustColumnWidths(headers, rows) {
+//     const table = document.getElementById('csvResultTable');
+//     const headerCells = table.querySelectorAll('thead th');
+    
+//     headers.forEach((header, colIndex) => {
+//         // ヘッダーの幅を設定
+//         const headerCell = headerCells[colIndex + 1]; // #列を除外
+//         headerCell.style.width = `${header.length * 10}px`; // ヘッダーの幅を設定
+
+//         // 各行の最大幅を計算
+//         let maxWidth = headerCell.offsetWidth;
+//         rows.forEach(row => {
+//             const cellContent = row.columns[colIndex];
+//             const tempCell = document.createElement('span');
+//             tempCell.style.visibility = 'hidden'; // 非表示で計算
+//             tempCell.style.whiteSpace = 'nowrap'; // 折り返さない
+//             tempCell.innerText = cellContent;
+//             document.body.appendChild(tempCell); // ドキュメントに追加
+//             maxWidth = Math.max(maxWidth, tempCell.offsetWidth); // 最大幅を更新
+//             document.body.removeChild(tempCell); // 取得後に削除
+//         });
+
+//         // 最大幅をヘッダーに設定
+//         headerCell.style.width = `${Math.max(headerCell.offsetWidth, maxWidth)}px`;
+//     });
+// }
+
+
+
+// 各列の幅を調整する関数
+function adjustColumnWidths(headers, rows) {
+    const table = document.getElementById('csvResultTable');
+    const headerCells = table.querySelectorAll('thead th');
+
+    // 表示されているヘッダーのインデックスを取得
+    const visibleColumns = [...headerCells].map((headerCell, index) => {
+        return headerCell.style.display !== 'none' ? index : -1;
+    }).filter(index => index !== -1);
+
+    visibleColumns.forEach((colIndex) => {
+        const headerCell = headerCells[colIndex]; // 表示されているヘッダーのセル
+
+        // ヘッダーの幅を設定
+        headerCell.style.width = `${headerCell.innerText.length * 10}px`; // ヘッダーの幅を設定
+
+        // 各行の最大幅を計算
+        let maxWidth = headerCell.offsetWidth;
+        rows.forEach(row => {
+            const cellContent = row[headers[colIndex]] || ''; // ヘッダー名で内容取得
+            const tempCell = document.createElement('span');
+            tempCell.style.visibility = 'hidden'; // 非表示で計算
+            tempCell.style.whiteSpace = 'nowrap'; // 折り返さない
+            tempCell.innerText = cellContent;
+            document.body.appendChild(tempCell); // ドキュメントに追加
+            maxWidth = Math.max(maxWidth, tempCell.offsetWidth); // 最大幅を更新
+            document.body.removeChild(tempCell); // 取得後に削除
+        });
+
+        // 最大幅をヘッダーに設定
+        headerCell.style.width = `${Math.max(headerCell.offsetWidth, maxWidth)}px`;
+    });
+}
+
+
+
+
+
+// // 各列の幅を調整する関数
+// function adjustColumnWidths(headers, rows) {
+//     const table = document.getElementById('csvResultTable');
+//     const headerCells = table.querySelectorAll('thead th');
+
+//     headers.forEach((header, colIndex) => {
+//         // ヘッダーの幅を設定（#列を除外して+1）
+//         const headerCell = headerCells[colIndex + 1]; 
+//         headerCell.style.width = `${header.length * 10}px`; 
+
+//         // 各行の最大幅を計算
+//         let maxWidth = headerCell.offsetWidth;
+
+//         rows.forEach(row => {
+//             const cellContent = row[header]; // 修正：header名に対応する値を取得
+//             if (cellContent === undefined) return; // 空セルの回避
+
+//             // 一時的な非表示セルを生成して幅を測定
+//             const tempCell = document.createElement('span');
+//             tempCell.style.visibility = 'hidden'; 
+//             tempCell.style.whiteSpace = 'nowrap'; 
+//             tempCell.innerText = cellContent;
+//             document.body.appendChild(tempCell); 
+//             maxWidth = Math.max(maxWidth, tempCell.offsetWidth); 
+//             document.body.removeChild(tempCell);
+//         });
+
+//         // ヘッダーに最大幅を設定
+//         headerCell.style.width = `${Math.max(headerCell.offsetWidth, maxWidth)}px`;
+//     });
+// }
+
+
+function sendDataToBackend() {
+
+    if (confirm('分析開始しますか？')) {
+        // ユーザーが「OK」をクリックした場合
+    } else {
+        alert('分析がキャンセルされました。'); // ユーザーが「キャンセル」をクリックした場合
+        return;
+    }
+
+    // テーブルからデータを取得
+    const table = document.getElementById('csvResultTable');
+    const rows = table.querySelectorAll('tbody tr');
+    
+    const dataToSend = [];
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const rowData = {
+            index: cells[0].innerText,
+            timestamp: cells[1].innerText,
+            speaker: cells[2].innerText,
+            utterance: cells[3].querySelector('input') ? cells[3].querySelector('input').value : cells[3].innerText
+        };
+        dataToSend.push(rowData);
+    });
+
+    // AJAX通信を開始
+    const apiurl = 'https://nantoka.execute-api.ap-northeast-1.amazonaws.com/dev/comprehend';
+
+    $.ajax({
+        url: apiurl,
+        type: 'POST',
+        dataType: 'json',
+        contentType: 'application/json',
+        data: JSON.stringify(dataToSend), // JSON形式で送信
+        headers: {
+            'Authorization': idToken
+        }
+    })
+    // .done(function(response) {
+    .done((response) => {
+        // alert('データ送信成功: ' + JSON.stringify(response));
+        const results = response.results;
+        updateTableWithSentiment(results); // 取得結果でテーブル更新
+
+        console.log(results);
+
+    })
+    .fail((jqXHR, textStatus, errorThrown) => {
+        console.error('AJAXエラー:', jqXHR);
+        alert('エラー発生: ' + textStatus + '\n' + errorThrown);
+    });
+
+}
+
+function displayTableWithSentiment({ headers, rows }) {
+    const table = document.getElementById('csvResultTable');
+    const thead = table.querySelector('thead');
+    const tbody = table.querySelector('tbody');
+
+    // 1. テーブルのクリア処理
+    thead.innerHTML = ''; 
+    tbody.innerHTML = ''; 
+
+    // // 2. ヘッダー生成
+    // thead.innerHTML = `
+    //     <tr>
+    //         ${headers
+    //             .map(header => `<th>${header}</th>`)
+    //             .join('')}
+    //     </tr>
+    // `;
+
+    // 2. ヘッダー生成（keywordsは非表示）
+    thead.innerHTML = `
+        <tr>
+            ${headers
+                .map(header => {
+                    if (header === 'keywords') {
+                        return `<th style="display: none;">${header}</th>`; // keywords列を非表示に設定
+                    }
+                    return `<th>${header}</th>`;
+                })
+                .join('')}
+        </tr>
+    `;
+
+    // // 3. テーブルボディの生成
+    // rows.forEach((row, rowIndex) => {
+    //     const rowClass = row.speaker === 'customer' ? 'custom-light-blue' : '';
+    //     const sentimentColor = getSentimentColor(row.sentiment); // 感情に基づく色取得
+
+    //     const rowHTML = `
+    //         <tr class="${rowClass}">
+    //             <td>${rowIndex + 1}</td>  <!-- 自動ナンバリング -->
+    //             ${headers
+    //                 .filter(header => header !== 'sentiment')  // sentiment列は除外
+    //                 .map(header =>
+    //                     header === 'utterance'
+    //                         ? `<td><input type="text" value="${row[header]}" class="utterance-input" /></td>`
+    //                         : `<td>${row[header]}</td>`
+    //                 )
+    //                 .join('')}
+    //             <td style="color: ${sentimentColor};">${row.sentiment}</td>  <!-- 感情列の追加 -->
+    //         </tr>
+    //     `;
+    //     tbody.insertAdjacentHTML('beforeend', rowHTML);
+    // });
+
+    // 3. テーブルボディの生成
+    rows.forEach((row, rowIndex) => {
+        const rowClass = row.speaker === 'customer' ? 'custom-light-blue' : ''; // 顧客の行に色を付ける
+
+        const rowHTML = `
+            <tr class="${rowClass}">
+                ${headers
+                    .map(header => {
+                        if (header === 'utterance') {
+                            // 発話列はテキストボックスで編集可能にする
+                            return `<td><input type="text" value="${row[header]}" class="utterance-input" /></td>`;
+                        } else if (header === 'sentiment') {
+                            // 感情列は色付けを適用
+                            const sentimentColor = getSentimentColor(row[header]); 
+                            return `<td style="color: ${sentimentColor}; font-weight: bold;">${row[header]}</td>`;
+                        } else if (header === 'keywords') {
+                            // keywords列は非表示
+                            return `<td style="display: none;">${JSON.stringify(row[header])}</td>`;
+                        } else {
+                            // その他の列は通常表示
+                            return `<td>${row[header]}</td>`;
+                        }
+                    })
+                    .join('')}
+            </tr>
+        `;
+        tbody.insertAdjacentHTML('beforeend', rowHTML); // 行をテーブルに追加
+    });
+
+    // 4. 列幅の自動調整を呼び出す
+    adjustColumnWidths(headers, rows);
+
+    // 各円グラフを描画
+    createSentimentPieChart('customer', 'piechart-sentiment-customer'); // Customer用
+    createSentimentPieChart('operator', 'piechart-sentiment-operator'); // Operator用
+
+    // 4. 折れ線グラフを生成
+    generateSentimentLineChart(rows);
+
+    console.log(rows);
+
+}
+
+// 4. 感情に基づく色の設定関数
+function getSentimentColor(sentiment) {
+    switch (sentiment) {
+        case 'POSITIVE':
+            return 'blue';
+        case 'NEGATIVE':
+            return 'red';
+        default:
+            return 'black';
+    }
+}
+
+// 5. Lambdaからのデータを受け取り、テーブルに再セットする処理
+function updateTableWithSentiment(results) {
+    // `#`列以外のヘッダーを抽出
+    // const headers = Object.keys(results[0]).filter(key => key !== '#'); 
+
+    const headers = Object.keys(results[0])
+    displayTableWithSentiment({ headers, rows: results });
+}
+
+// 感情の比率を計算する関数
+function calculateSentimentRatios(data) {
+    const sentimentCounts = { positive: 0, negative: 0, neutral: 0, mixed: 0 };
+
+    data.forEach(row => {
+        switch (row.sentiment.toLowerCase()) {
+            case 'positive':
+                sentimentCounts.positive++;
+                break;
+            case 'negative':
+                sentimentCounts.negative++;
+                break;
+            case 'neutral':
+                sentimentCounts.neutral++;
+                break;
+            case 'mixed':
+                sentimentCounts.mixed++;
+                break;
+        }
+    });
+
+    const total = Object.values(sentimentCounts).reduce((sum, count) => sum + count, 0);
+    const ratios = Object.fromEntries(
+        Object.entries(sentimentCounts).map(([key, value]) => [key, (value / total) * 100])
+    );
+
+    return ratios;
+}
+
+// 円グラフの描画関数
+function createSentimentPieChart(role, canvasId) {
+    const counts = extractSentimentsFromTable(role);
+
+    const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    const ratios = Object.fromEntries(
+        Object.entries(counts).map(([key, value]) => [key, (value / total) * 100])
+    );
+
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Positive', 'Negative', 'Neutral', 'Mixed'],
+            datasets: [{
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.7)',  // 青
+                    'rgba(255, 99, 132, 0.7)',  // 赤
+                    'rgba(201, 203, 207, 0.7)', // 灰
+                    'rgba(255, 206, 86, 0.7)'   // 黄色
+                ],
+                data: [
+                    ratios.positive || 0,
+                    ratios.negative || 0,
+                    ratios.neutral || 0,
+                    ratios.mixed || 0
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (tooltipItem) {
+                            const label = tooltipItem.label || '';
+                            const value = tooltipItem.raw || 0;
+                            return `${label}: ${value.toFixed(2)}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+// // テーブルから感情データを抽出する関数
+// function extractSentimentsFromTable(role) {
+//     const rows = document.querySelectorAll('#csvResultTable tbody tr');
+//     const sentimentCounts = { positive: 0, negative: 0, neutral: 0, mixed: 0 };
+
+//     rows.forEach(row => {
+//         const speaker = row.querySelector('td:nth-child(3)').innerText.trim().toLowerCase(); // スピーカー情報
+//         const sentiment = row.querySelector('td:last-child').innerText.trim().toLowerCase(); // 最後の列から感情取得
+        
+//         if (speaker === role && sentimentCounts.hasOwnProperty(sentiment)) {
+//             sentimentCounts[sentiment]++;
+//         }
+//     });
+
+//     return sentimentCounts;
+// }
+
+
+
+
+
+// 列名からspeakerとsentimentをとる仕様に変更。
+
+// テーブルから感情データを抽出する関数
+function extractSentimentsFromTable(role) {
+    const table = document.querySelector('#csvResultTable');
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase()); // ヘッダー取得
+
+    // "speaker" と "sentiment" のインデックスを特定
+    const speakerIndex = headers.indexOf('speaker');
+    const sentimentIndex = headers.indexOf('sentiment');
+
+    if (speakerIndex === -1 || sentimentIndex === -1) {
+        console.error('ヘッダーに "speaker" または "sentiment" が見つかりません。');
+        return { positive: 0, negative: 0, neutral: 0, mixed: 0 };
+    }
+
+    const rows = table.querySelectorAll('tbody tr');
+    const sentimentCounts = { positive: 0, negative: 0, neutral: 0, mixed: 0 };
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');  // 各セルを取得
+        const speaker = cells[speakerIndex].innerText.trim().toLowerCase();
+        const sentiment = cells[sentimentIndex].innerText.trim().toLowerCase();
+
+        if (speaker === role && sentimentCounts.hasOwnProperty(sentiment)) {
+            sentimentCounts[sentiment]++;
+        }
+    });
+
+    return sentimentCounts;
+}
+
+
+
+
+// Pie Chartの描画関数
+function createSentimentPieChartFromTable() {
+    const counts = extractSentimentsFromTable();
+
+    const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    const ratios = Object.fromEntries(
+        Object.entries(counts).map(([key, value]) => [key, (value / total) * 100])
+    );
+
+    const ctx = document.getElementById('pie-chart-sentiment').getContext('2d');
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Positive', 'Negative', 'Neutral', 'Mixed'],
+            datasets: [{
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.7)',  // 青
+                    'rgba(255, 99, 132, 0.7)',  // 赤
+                    'rgba(201, 203, 207, 0.7)', // 灰
+                    'rgba(255, 206, 86, 0.7)'   // 黄色
+                ],
+                data: [
+                    ratios.positive,
+                    ratios.negative,
+                    ratios.neutral,
+                    ratios.mixed
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (tooltipItem) {
+                            const label = tooltipItem.label || '';
+                            const value = tooltipItem.raw || 0;
+                            return `${label}: ${value.toFixed(2)}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+function generateSentimentLineChart(data) {
+    const ctx = document.getElementById("sentiment-line-chart").getContext("2d");
+
+    // 1. タイムスタンプから時刻部分のみ抽出 (例: "09:00:00")
+    const labels = data.map(row => 
+        new Date(row.timestamp).toLocaleTimeString('ja-JP', { hour12: false })
+    );
+
+    // 2. 感情カテゴリを数値にマッピング
+    const sentimentMap = { POSITIVE: 3, NEUTRAL: 2, NEGATIVE: 1, MIXED: 0 };
+
+    // 3. 顧客とオペレーターごとの感情データを準備
+    const customerData = data.map(row => 
+        row.speaker === 'customer' ? sentimentMap[row.sentiment] : null
+    );
+
+    const operatorData = data.map(row => 
+        row.speaker === 'operator' ? sentimentMap[row.sentiment] : null
+    );
+
+    // 4. 既存のグラフを破棄
+    if (window.lineChart) window.lineChart.destroy();
+
+    // 5. 折れ線グラフを生成
+    window.lineChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Customer',
+                    data: customerData,
+                    borderColor: 'blue',
+                    backgroundColor: 'rgba(0, 0, 255, 0.2)',
+                    fill: false,
+                    spanGaps: true,
+                },
+                {
+                    label: 'Operator',
+                    data: operatorData,
+                    borderColor: 'gray',
+                    backgroundColor: 'rgba(128, 128, 128, 0.2)',
+                    fill: false,
+                    spanGaps: true,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(tooltipItem) {
+                            const sentimentLabels = ['MIXED', 'NEGATIVE', 'NEUTRAL', 'POSITIVE'];
+                            const utterance = data[tooltipItem.dataIndex].utterance; // utteranceを取得
+                            return [
+                                `${tooltipItem.dataset.label}: ${sentimentLabels[tooltipItem.raw]}`,
+                                `Utterance: ${utterance}` // utteranceをツールチップに追加
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: {
+                        stepSize: 1,
+                        callback: function(value) {
+                            const sentimentLabels = ['MIXED', 'NEGATIVE', 'NEUTRAL', 'POSITIVE'];
+                            return sentimentLabels[value];
+                        }
+                    },
+                    title: { display: true, text: 'Sentiment' }
+                },
+                x: {
+                    title: { display: true, text: 'Timestamp' },
+                    ticks: {
+                        maxRotation: 0,  // 回転を無効化
+                        minRotation: 90,  // 縦方向に回転
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+function calcAi() {
+
+    if (confirm('分析開始しますか？')) {
+
+    } else {
+        alert('分析がキャンセルされました。'); 
+        return;
+    }
+
+    // テーブルからデータを取得
+    const table = document.getElementById('csvResultTable');
+    const rows = table.querySelectorAll('tbody tr');
+
+    const dataToSend = [];
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const rowData = {
+            index: cells[0].innerText,
+            timestamp: cells[1].innerText,
+            speaker: cells[2].innerText,
+            utterance: cells[3].querySelector('input') ? cells[3].querySelector('input').value : cells[3].innerText,
+            sentiment: cells[4].innerText,
+            keywords: cells[5].innerText,
+        };
+        dataToSend.push(rowData);
+    });
+
+    // AJAX通信を開始
+    const apiurl = 'https://nantoka.execute-api.ap-northeast-1.amazonaws.com/dev/ai';
+
+    $.ajax({
+        url: apiurl,
+        type: 'POST',
+        dataType: 'json',
+        contentType: 'application/json',
+        data: JSON.stringify(dataToSend), // JSON形式で送信
+        headers: {
+            'Authorization': idToken
+        }
+    })
+    .done((response) => {
+        const results = response.results;
+        // updateTableWithSentiment(results); // 取得結果でテーブル更新
+
+        console.log(results);
+
+    })
+    .fail((jqXHR, textStatus, errorThrown) => {
+        console.error('AJAXエラー:', jqXHR);
+        alert('エラー発生: ' + textStatus + '\n' + errorThrown);
+    });
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+</script>
+
+
+<body>
+    <div class="container-xxl position-relative bg-white d-flex p-0">
+        <!-- Spinner Start -->
+        <div id="spinner" class="show bg-white position-fixed translate-middle w-100 vh-100 top-50 start-50 d-flex align-items-center justify-content-center">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+        <!-- Spinner End -->
+
+
+        <!-- Sidebar Start -->
+        <div class="sidebar pe-4 pb-3">
+            <nav class="navbar bg-light navbar-light">
+                <a href="index.html" class="navbar-brand mx-4 mb-3">
+                    <h3 class="text-primary"><i class="fa fa-hashtag me-2"></i>DASHMIN</h3>
+                </a>
+                <div class="d-flex align-items-center ms-4 mb-4">
+                    <div class="position-relative">
+                        <img class="rounded-circle" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                        <div class="bg-success rounded-circle border border-2 border-white position-absolute end-0 bottom-0 p-1"></div>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="mb-0">Jhon Doe</h6>
+                        <span>Admin</span>
+                    </div>
+                </div>
+                <div class="navbar-nav w-100">
+                    <a href="index.html" class="nav-item nav-link"><i class="fa fa-tachometer-alt me-2"></i>Dashboard</a>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown"><i class="fa fa-laptop me-2"></i>Elements</a>
+                        <div class="dropdown-menu bg-transparent border-0">
+                            <a href="button.html" class="dropdown-item">Buttons</a>
+                            <a href="typography.html" class="dropdown-item">Typography</a>
+                            <a href="element.html" class="dropdown-item">Other Elements</a>
+                        </div>
+                    </div>
+                    <a href="widget.html" class="nav-item nav-link"><i class="fa fa-th me-2"></i>Widgets</a>
+                    <a href="form.html" class="nav-item nav-link"><i class="fa fa-keyboard me-2"></i>Forms</a>
+                    <a href="table.html" class="nav-item nav-link"><i class="fa fa-table me-2"></i>Tables</a>
+                    <a href="chart.html" class="nav-item nav-link"><i class="fa fa-chart-bar me-2"></i>Charts</a>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle active" data-bs-toggle="dropdown"><i class="far fa-file-alt me-2"></i>Pages</a>
+                        <div class="dropdown-menu bg-transparent border-0">
+                            <a href="signin.html" class="dropdown-item">Sign In</a>
+                            <a href="signup.html" class="dropdown-item">Sign Up</a>
+                            <a href="404.html" class="dropdown-item">404 Error</a>
+                            <a href="blank.html" class="dropdown-item active">Blank Page</a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+        <!-- Sidebar End -->
+
+
+        <!-- Content Start -->
+        <div class="content">
+            <!-- Navbar Start -->
+            <nav class="navbar navbar-expand bg-light navbar-light sticky-top px-4 py-0">
+                <a href="index.html" class="navbar-brand d-flex d-lg-none me-4">
+                    <h2 class="text-primary mb-0"><i class="fa fa-hashtag"></i></h2>
+                </a>
+                <a href="#" class="sidebar-toggler flex-shrink-0">
+                    <i class="fa fa-bars"></i>
+                </a>
+                <form class="d-none d-md-flex ms-4">
+                    <input class="form-control border-0" type="search" placeholder="Search">
+                </form>
+                <div class="navbar-nav align-items-center ms-auto">
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fa fa-envelope me-lg-2"></i>
+                            <span class="d-none d-lg-inline-flex">Message</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end bg-light border-0 rounded-0 rounded-bottom m-0">
+                            <a href="#" class="dropdown-item">
+                                <div class="d-flex align-items-center">
+                                    <img class="rounded-circle" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                                    <div class="ms-2">
+                                        <h6 class="fw-normal mb-0">Jhon send you a message</h6>
+                                        <small>15 minutes ago</small>
+                                    </div>
+                                </div>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item">
+                                <div class="d-flex align-items-center">
+                                    <img class="rounded-circle" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                                    <div class="ms-2">
+                                        <h6 class="fw-normal mb-0">Jhon send you a message</h6>
+                                        <small>15 minutes ago</small>
+                                    </div>
+                                </div>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item">
+                                <div class="d-flex align-items-center">
+                                    <img class="rounded-circle" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                                    <div class="ms-2">
+                                        <h6 class="fw-normal mb-0">Jhon send you a message</h6>
+                                        <small>15 minutes ago</small>
+                                    </div>
+                                </div>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item text-center">See all message</a>
+                        </div>
+                    </div>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fa fa-bell me-lg-2"></i>
+                            <span class="d-none d-lg-inline-flex">Notificatin</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end bg-light border-0 rounded-0 rounded-bottom m-0">
+                            <a href="#" class="dropdown-item">
+                                <h6 class="fw-normal mb-0">Profile updated</h6>
+                                <small>15 minutes ago</small>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item">
+                                <h6 class="fw-normal mb-0">New user added</h6>
+                                <small>15 minutes ago</small>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item">
+                                <h6 class="fw-normal mb-0">Password changed</h6>
+                                <small>15 minutes ago</small>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item text-center">See all notifications</a>
+                        </div>
+                    </div>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                            <img class="rounded-circle me-lg-2" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                            <span class="d-none d-lg-inline-flex">John Doe</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end bg-light border-0 rounded-0 rounded-bottom m-0">
+                            <a href="#" class="dropdown-item">My Profile</a>
+                            <a href="#" class="dropdown-item">Settings</a>
+                            <a href="#" class="dropdown-item" onclick="logout()">Log Out</a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+            <!-- Navbar End -->
+
+
+
+<!-- Form Start -->
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-sm-12 col-xl-12">
+            <div class="bg-light rounded h-100 p-4">
+                <h6 class="mb-4">NeXt-ISTT</h6>
+                <form>
+                    <div class="mb-3">
+                        <div class="mb-3">
+                            <label for="formFile" class="form-label">CSVファイルを選択</label>
+                            <input class="form-control" type="file" id="formFile" accept=".csv">
+                        </div>
+
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-primary" onclick="importCSV()">CSVインポート</button>
+                        </div>
+
+                        <!-- CSVインポート結果を表示するテーブル -->
+                        <h6 class="mt-4">CSVインポート結果</h6>
+                        <div class="table-responsive mb-3">
+                            <!-- <table id="csvResultTable" class="table table-striped"> -->
+                            <table id="csvResultTable" class="table">
+
+                                <thead></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+
+                        
+
+                        <div class="form-floating mb-2">
+                            <textarea class="form-control" placeholder="Leave a comment here"
+                                id="floatingTextarea" style="height: 150px;"></textarea>
+                            <label for="floatingTextarea">要約テキストがここに表示されます</label>
+                        </div>
+
+                        <div class="form-floating">
+                            <textarea class="form-control" placeholder="Leave a comment here"
+                                id="hi-low-analysis" style="height: 100px;"></textarea>
+                            <label for="floatingTextarea">ハイパーローパー分析（AI）</label>
+                        </div>
+
+
+
+                    </div>
+
+                    <button type="button" class="btn btn-primary" onclick="sendDataToBackend()">要約</button>
+                    <button type="button" class="btn btn-primary" onclick="calcAi()">分析</button>
+
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="inlineRadioOptions" id="inlineRadio1"
+                            value="option1" checked>
+                        <label class="form-check-label" for="inlineRadio1">ハイパフォーマー</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="inlineRadioOptions" id="inlineRadio2"
+                            value="option2">
+                        <label class="form-check-label" for="inlineRadio2">ローパフォーマー</label>
+                    </div>
+                </form>
+
+
+
+
+
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Form End -->
+            
+
+            <!-- Chart Start -->
+            <div class="container-fluid pt-4 px-4">
+                <div class="row g-4">
+
+                    <div class="col-sm-12">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Multiple Line Chart</h6>
+                            <canvas id="sentiment-line-chart"></canvas>
+                        </div>
+                    </div>
+
+
+
+
+                    <!-- <div class="col-sm-12 col-xl-6">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Single Line Chart</h6>
+                            <canvas id="line-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-sm-12 col-xl-6">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Multiple Line Chart</h6>
+                            <canvas id="salse-revenue"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-sm-12 col-xl-6">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Single Bar Chart</h6>
+                            <canvas id="bar-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-sm-12 col-xl-6">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Multiple Bar Chart</h6>
+                            <canvas id="worldwide-sales"></canvas>
+                        </div>
+                    </div> -->
+                    <div class="col-sm-12 col-xl-6">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Customer</h6>
+                            <canvas id="piechart-sentiment-customer"></canvas>
+                        </div>
+                    </div>
+ 
+                    <div class="col-sm-12 col-xl-6">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Operator</h6>
+                            <canvas id="piechart-sentiment-operator"></canvas>
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+            <!-- Chart End -->
+
+
+            
+
+            <!-- Recent Sales Start -->
+            <div class="container-fluid pt-4 px-4">
+                <div class="bg-light text-center rounded p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-4">
+                        <h6 class="mb-0">Recent Salse</h6>
+                        <a href="">Show All</a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table text-start align-middle table-bordered table-hover mb-0">
+                            <thead>
+                                <tr class="text-dark">
+                                    <th scope="col"><input class="form-check-input" type="checkbox"></th>
+                                    <th scope="col">Date</th>
+                                    <th scope="col">Invoice</th>
+                                    <th scope="col">Customer</th>
+                                    <th scope="col">Amount</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><input class="form-check-input" type="checkbox"></td>
+                                    <td>01 Jan 2045</td>
+                                    <td>INV-0123</td>
+                                    <td>Jhon Doe</td>
+                                    <td>$123</td>
+                                    <td>Paid</td>
+                                    <td><a class="btn btn-sm btn-primary" href="">Detail</a></td>
+                                </tr>
+                                <tr>
+                                    <td><input class="form-check-input" type="checkbox"></td>
+                                    <td>01 Jan 2045</td>
+                                    <td>INV-0123</td>
+                                    <td>Jhon Doe</td>
+                                    <td>$123</td>
+                                    <td>Paid</td>
+                                    <td><a class="btn btn-sm btn-primary" href="">Detail</a></td>
+                                </tr>
+                                <tr>
+                                    <td><input class="form-check-input" type="checkbox"></td>
+                                    <td>01 Jan 2045</td>
+                                    <td>INV-0123</td>
+                                    <td>Jhon Doe</td>
+                                    <td>$123</td>
+                                    <td>Paid</td>
+                                    <td><a class="btn btn-sm btn-primary" href="">Detail</a></td>
+                                </tr>
+                                <tr>
+                                    <td><input class="form-check-input" type="checkbox"></td>
+                                    <td>01 Jan 2045</td>
+                                    <td>INV-0123</td>
+                                    <td>Jhon Doe</td>
+                                    <td>$123</td>
+                                    <td>Paid</td>
+                                    <td><a class="btn btn-sm btn-primary" href="">Detail</a></td>
+                                </tr>
+                                <tr>
+                                    <td><input class="form-check-input" type="checkbox"></td>
+                                    <td>01 Jan 2045</td>
+                                    <td>INV-0123</td>
+                                    <td>Jhon Doe</td>
+                                    <td>$123</td>
+                                    <td>Paid</td>
+                                    <td><a class="btn btn-sm btn-primary" href="">Detail</a></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <!-- Recent Sales End -->
+
+
+            <!-- Footer Start -->
+            <div class="container-fluid pt-4 px-4">
+                <div class="bg-light rounded-top p-4">
+                    <div class="row">
+                        <div class="col-12 col-sm-6 text-center text-sm-start">
+                            &copy; <a href="#">Your Site Name</a>, All Right Reserved. 
+                        </div>
+                        <div class="col-12 col-sm-6 text-center text-sm-end">
+                            <!--/*** This template is free as long as you keep the footer author’s credit link/attribution link/backlink. If you'd like to use the template without the footer author’s credit link/attribution link/backlink, you can purchase the Credit Removal License from "https://htmlcodex.com/credit-removal". Thank you for your support. ***/-->
+                            Designed By <a href="https://htmlcodex.com">HTML Codex</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Footer End -->
+        </div>
+        <!-- Content End -->
+
+
+        <!-- Back to Top -->
+        <a href="#" class="btn btn-lg btn-primary btn-lg-square back-to-top"><i class="bi bi-arrow-up"></i></a>
+    </div>
+
+    <!-- ajax通信に必要。新バージョン -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+
+    <!-- 以下のjavascript、上に移動すると、画面広げるボタンが聞かなくなるので注意 -->
+    <!-- JavaScript Libraries -->
+    <!-- <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="lib/chart/chart.min.js"></script>
+    <script src="lib/easing/easing.min.js"></script>
+    <script src="lib/waypoints/waypoints.min.js"></script>
+    <script src="lib/owlcarousel/owl.carousel.min.js"></script>
+    <script src="lib/tempusdominus/js/moment.min.js"></script>
+    <script src="lib/tempusdominus/js/moment-timezone.min.js"></script>
+    <script src="lib/tempusdominus/js/tempusdominus-bootstrap-4.min.js"></script>
+
+    <!-- Template Javascript -->
+    <script src="js/main.js"></script>
+
+
+</body>
+
+</html>
