@@ -1,1 +1,5 @@
+# 使用するyamlファイルの同ディレクトリに移動。Lambdaの場合、lambdaフォルダと同階層にyamlファイルを置き、そこにcdし実行を開始
+
+sam build --template-file lambda_deploy.yaml
+
 sam deploy --template-file lambda_deploy.yaml --stack-name stack_lambda_deploy_dev --s3-bucket samdata1-buildfiles-dev
