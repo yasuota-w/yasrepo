@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  Function1:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: NANTOKA-test-dev  # 関数名の指定
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      MemorySize: 256
+      Timeout: 30
+      Role: arn:aws:iam::999988887777:role/take-testrole
+      CodeUri: lambda/NANTOKA-test-dev  # コードの場所
+
+  Function2:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: NANTOKA-test2-dev  # 関数名の指定
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      MemorySize: 128
+      Timeout: 20
+      Role: arn:aws:iam::999988887777:role/take-testrole
+      CodeUri: lambda/NANTOKA-test2-dev  # コードの場所
