@@ -1,0 +1,440 @@
+既存Lambda関数をSAM管理に移行させる方法				
+				
+				
+1	作業ディレクトリに移動			
+		cd aws-repo/takerepo-tokyo/dev/lambda		
+				
+2	まず、作成したlambda_deploy.yamlをもとにpackaged.yamlファイルを生成する。（S3にソース類などを生成し、参照させてつくっている）			
+				
+		sam package \		
+		--template-file lambda_deploy.yaml \		
+		--s3-bucket sam-buildfile-dev \		
+		--output-template-file packaged.yaml		
+				
+		同階層に生成される		
+				
+				
+3	下記コマンドを実行し、既存関数を追加。各関数について、パラメータが必要。LogicalResourceIdはyamlファイルに定義したものと同一にする。ハイフンは不可。			
+				
+				
+		aws cloudformation create-change-set \		
+		  --stack-name STACK-LAMBDA-TEST \		
+		  --change-set-name ImportExistingLambdaFunction \		
+		  --change-set-type IMPORT \		
+		  --resources-to-import '[ 		
+		    {		
+		      "ResourceType": "AWS::Lambda::Function",		
+		      "LogicalResourceId": "GPTtestdev",		
+		      "ResourceIdentifier": {		
+		        "FunctionName": "GPT-test-dev"		
+		      }		
+		    },		
+		    {		
+		      "ResourceType": "AWS::Lambda::Function",		
+		      "LogicalResourceId": "GPTtest2dev",		
+		      "ResourceIdentifier": {		
+		        "FunctionName": "GPT-test2-dev"		
+		      }		
+		    },		
+		    {		
+		      "ResourceType": "AWS::Lambda::Function",		
+		      "LogicalResourceId": "GPTtest3dev",		
+		      "ResourceIdentifier": {		
+		        "FunctionName": "GPT-test3-dev"		
+		      }		
+		    }		
+		  ]' \		
+		  --template-body file://packaged.yaml \		
+		  --capabilities CAPABILITY_IAM		
+				
+				
+				
+4	上記実行後、チェンジセットの適用を行う			
+				
+		aws cloudformation execute-change-set \		
+		  --stack-name STACK-LAMBDA-TEST \		
+		  --change-set-name ImportExistingLambdaFunction		
+				
+				
+5	以降は通常のsam build、sam deployが可能となる			
+				
+		sam build --template-file lambda_deploy.yaml		
+				
+		buildfileS3	sam-buildfile-dev	
+		スタック名	STACK-LAMBDA-TEST	
+				
+				
+				
+		sam deploy --template-file lambda_deploy.yaml --stack-name STACK-LAMBDA-TEST --s3-bucket sam-buildfile-dev		
+				
+				
+		きた		
+				
+				
+				
+		sam deploy --template-file lambda_deploy.yaml --stack-name STACK-LAMBDA-TEST --s3-bucket sam-buildfile-dev --force-upload		
+		強制デプロイしたとしても、変更がないとみなされるので無意味		
+				
+		例えば、python3.12にしてビルドしようとしても、cloud9環境にpython3.12がインストールされていなければビルドは失敗する		
+				
+				
+				
+				
+				
+				
+1	作業ディレクトリに移動			
+		cd aws-repo/takerepo-tokyo/dev		
+				
+				
+				
+				
+				
+		        {		
+		            "id": "omth0nd8bf",		
+		            "name": "yasuotaTestApp-dev",		
+		            "createdDate": "2024-10-19T07:09:32+00:00",		
+		            "apiKeySource": "HEADER",		
+		            "endpointConfiguration": {		
+		                "types": [		
+		                    "REGIONAL"		
+		                ]		
+		            },		
+		            "disableExecuteApiEndpoint": false		
+		        }		
+				
+				
+				
+				
+				
+				
+				
+		aws cloudformation create-change-set \		
+		  --stack-name STACK-API-TEST \		
+		  --change-set-name ImportExistingApiGateway \		
+		  --change-set-type IMPORT \		
+		  --resources-to-import file://apigateway_import.json \		
+		  --template-body file://apigateway_deploy.yaml \		
+		  --capabilities CAPABILITY_NAMED_IAM		
+				
+				
+				
+		aws cloudformation execute-change-set \		
+		  --change-set-name ImportExistingApiGateway \		
+		  --stack-name STACK-API-TEST		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# lambda_deploy.yaml
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  EnvType:
+    Type: String
+    Default: dev
+  AccountId:
+    Type: String
+    Default: 123456789999
+
+Resources:
+  GPTtestdev:
+    Type: AWS::Serverless::Function
+    # ② DeletionPolicyの追加
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !Sub GPT-test-${EnvType}  # 関数名の指定
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.11
+      MemorySize: 256
+      Timeout: 120
+      Role: !Sub arn:aws:iam::${AccountId}:role/take-testrole
+      CodeUri: GPT-test-dev  # CodeUriは変数を使えない
+      # CodeUri: 
+      #   Fn::ForEach:
+      #     - !Sub "GPT-test-${EnvType}"  # Cloud9のディレクトリ内の相対パス
+      #     - !Ref EnvType  # 環境タイプを参照
+
+  GPTtest2dev:
+    Type: AWS::Serverless::Function
+    # ② DeletionPolicyの追加
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !Sub GPT-test2-${EnvType} # 関数名の指定
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      MemorySize: 256
+      Timeout: 21
+      Role: !Sub arn:aws:iam::${AccountId}:role/take-testrole
+      CodeUri: GPT-test2-dev  # コードの場所
+      # CodeUri:
+      #   Fn::Sub: "GPT-test2-${EnvType}"
+      
+  GPTtest3dev:
+    Type: AWS::Serverless::Function
+    # ② DeletionPolicyの追加
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !Sub GPT-test3-${EnvType} # 関数名の指定
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      MemorySize: 128
+      Timeout: 20
+      Role: !Sub arn:aws:iam::${AccountId}:role/take-testrole
+      CodeUri: GPT-test3-dev  # コードの場所
+      # CodeUri:
+      #   Fn::Sub: "GPT-test2-${EnvType}"
+
+
+
+
+# import.json
+
+[
+  {
+    "ResourceType": "AWS::Lambda::Function",
+    "LogicalResourceId": "GPTtest2dev",
+    "ResourceIdentifier": {
+      "FunctionName": "GPT-test2-dev"
+    }
+  },
+  {
+    "ResourceType": "AWS::Lambda::Function",
+    "LogicalResourceId": "GPTtest3dev",
+    "ResourceIdentifier": {
+      "FunctionName": "GPT-test3-dev"
+    }
+  },
+  {
+    "ResourceType": "AWS::Lambda::Function",
+    "LogicalResourceId": "GPTtestdev",
+    "ResourceIdentifier": {
+      "FunctionName": "GPT-test-dev"
+    }
+  }
+]
+
+
+
+
+
+# apigateway_deploy.yaml
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  EnvType:
+    Type: String
+    Default: dev
+  AccountId:
+    Type: String
+    Default: 123456789999
+    
+Resources:
+  MyApi:
+    Type: AWS::ApiGateway::RestApi
+    # Type: AWS::Serverless::Api
+    Properties:
+      # RestApiId: "0606060606"
+      # Name: yasuotaTestAppNew-dev
+      Name: !Sub yasuotaTestApp-${EnvType}  # JSONのLogicalResourceIdと一致する必要あり
+      StageName: dev
+      EndpointConfiguration: REGIONAL
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          version: "2024-10-20T09:20:12Z"
+          title: "yasuotaTestApp-dev"
+        basePath: "/dev"
+        schemes:
+          - "https"
+        paths:
+          /ai:
+            post:
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              security:
+                - Authorizer-test: []
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:${AccountId}:function:GPT-CoreAi-${EnvType}/invocations"
+                
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                timeoutInMillis: 29000
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"
+            options:
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /comprehend:
+            post:
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              security:
+                - Authorizer-test: []
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub "arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-northeast-1:${AccountId}:function:GPT-Comprehend-${EnvType}/invocations"
+                
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                timeoutInMillis: 29000
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"
+            options:
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+        securityDefinitions:
+          Authorizer-test:
+            type: "apiKey"
+            name: "Authorization"
+            in: "header"
+            x-amazon-apigateway-authtype: "cognito_user_pools"
+            x-amazon-apigateway-authorizer:
+              providerARNs:
+                - "arn:aws:cognito-idp:ap-northeast-1:123456789999:userpool/ap-northeast-1_ASASASAS"
+              type: "cognito_user_pools"
+        definitions:
+          Empty:
+            type: "object"
+            title: "Empty Schema"
+        x-amazon-apigateway-gateway-responses:
+          DEFAULT_5XX:
+            responseParameters:
+              gatewayresponse.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          DEFAULT_4XX:
+            responseParameters:
+              gatewayresponse.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              
+              
+  GPTComprehendFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Sub arn:aws:lambda:ap-northeast-1:${AccountId}:function:GPT-Comprehend-${EnvType}
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: 
+        Fn::Sub: 
+          "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApi}/${EnvType}/POST/comprehend"
+          
+  GPTaiFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Sub arn:aws:lambda:ap-northeast-1:${AccountId}:function:GPT-CoreAi-${EnvType}
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: 
+        Fn::Sub: 
+          "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApi}/${EnvType}/POST/ai"
+
+                      
+
+
+
+
+
+      
