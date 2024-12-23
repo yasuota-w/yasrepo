@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>DASHMIN - Bootstrap Admin Template</title>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="" name="keywords">
+    <meta content="" name="description">
+
+    <!-- Favicon -->
+    <link href="img/favicon.ico" rel="icon">
+
+    <!-- Google Web Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icon Font Stylesheet -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.10.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Libraries Stylesheet -->
+    <link href="lib/owlcarousel/assets/owl.carousel.min.css" rel="stylesheet">
+    <link href="lib/tempusdominus/css/tempusdominus-bootstrap-4.min.css" rel="stylesheet" />
+
+    <!-- Customized Bootstrap Stylesheet -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Template Stylesheet -->
+    <link href="css/style.css" rel="stylesheet">
+
+
+    <!-- chat Stylesheet -->
+    <link href="css/chat.css" rel="stylesheet">
+
+    <!-- Cognito -->
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.2.0/dist/amazon-cognito-identity.min.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1037.0.min.js"></script>
+
+
+    <style>
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+        }
+
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+        }
+
+        .tab button:hover {
+            background-color: #ddd;
+        }
+
+        .tab button.active {
+            background-color: #ccc;
+        }
+
+        .tabcontent {
+            display: none;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+
+
+
+
+
+
+        /* 以下、このページのみの設定値 */
+        
+        /* 行表示色設定 */
+        .custom-light-blue {
+            background-color: #aeefff; /* 薄い水色 */
+        }
+
+        /* Utterance用の入力フィールドの見た目調整 */
+        .utterance-input {
+            border: none;            /* 枠線を消去 */
+            background-color: transparent; /* 背景を透明に */
+            padding: 0;              /* 余白をなくす */
+            height: auto;            /* 高さを自動調整 */
+            line-height: 1.5;        /* テキストの高さを他の列と一致させる */
+            font-size: inherit;      /* フォントサイズを親要素に合わせる */
+            width: 100%;             /* テーブルセルにフィット */
+        }
+
+        .utterance-input:focus {
+            outline: none;           /* フォーカス時の青いアウトラインを消す */
+        }
+
+
+        /* CSVインポート結果表示テーブル設定 */
+        .table-responsive {
+            max-height: 400px; /* 縦幅を300pxに固定 */
+            overflow-y: auto;  /* 縦スクロールバーを表示 */
+            overflow-x: auto;  /* 縦スクロールバーを表示 */
+        }
+
+
+
+
+    </style>
+</head>
+
+<script>
+    // グローバル変数としてIDトークンを格納
+    let idToken = null;
+
+    const poolData = {
+        UserPoolId: 'ap-northeast-1_asdfasdf',     // 例: 'us-east-1_xxxxxxxxx'
+        ClientId: 'asdfasdfasdfasdfasdfasdf'      // 例: 'xxxxxxxxxxxxxxxxxxxxxxxxxx'
+    };
+    const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+
+    // ページ読み込み時にログイン確認
+    window.onload = function () {
+        const cognitoUser = userPool.getCurrentUser();
+        if (!cognitoUser) {
+            alert('ログインが必要です。');
+            window.location.href = 'signin.html';  // ログインページにリダイレクト
+        } else {
+            // IDトークンを取得して変数に格納
+            cognitoUser.getSession((err, session) => {
+                if (err) {
+                    console.error('セッション取得エラー:', err);
+                    alert('セッション取得に失敗しました。');
+                    return;
+                }
+                idToken = session.getIdToken().getJwtToken(); // IDトークンを格納
+                console.log(idToken);
+            });
+        }
+    };
+
+    function logout() {
+        const cognitoUser = userPool.getCurrentUser();
+        if (cognitoUser) {
+            cognitoUser.signOut();
+            alert('ログアウトしました。');
+            // 必要に応じて、リダイレクト先のURLを設定することができます。
+            window.location.href = 'signin.html'; // ログアウト後の遷移先
+        } else {
+            alert('ログインしているユーザーが見つかりません。');
+        }
+    }
+
+    function testApi(){
+        alert('テスト開始します。');
+
+        const apiurl = 'https://asdfasdf.execute-api.ap-northeast-1.amazonaws.com/dev/getinfo'
+
+        const data = {
+            'bucket_name': 'aaaa',
+            'folder_path': 'bbbb',
+        }
+
+        // AJAXリクエストを送信
+        $.ajax({
+            url: apiurl,
+            type: 'POST',
+            dataType: 'json',
+            contentType: 'application/json', // JSON形式で送信
+            data: JSON.stringify(data), 
+            headers: {
+                'Authorization': idToken // IDトークンをAuthorizationヘッダーに追加
+            }
+        })
+        .done(function(response) {
+            let item = '';
+            item = response.Items;
+
+            const data_json = JSON.parse(JSON.stringify(response));
+            const text = data_json.result;
+
+            alert(text);
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error('AJAXエラー:', jqXHR);
+            alert('エラー発生: ' + textStatus + '\n' + errorThrown);
+        });
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function dataEntry(){
+
+    if (confirm('分析結果を登録しますか？')) {
+
+    } else {
+        alert('キャンセルされました。'); 
+        return;
+    }
+
+    // テーブルからデータを取得
+    const table = document.getElementById('csvResultTable');
+    const rows = table.querySelectorAll('tbody tr');
+
+    const dataToSend = [];
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const rowData = {
+            index: cells[0].innerText,
+            timestamp: cells[1].innerText,
+            speaker: cells[2].innerText,
+            utterance: cells[3].querySelector('input') ? cells[3].querySelector('input').value : cells[3].innerText,
+            sentiment: cells[4].innerText,
+            keywords: cells[5].innerText,
+        };
+        dataToSend.push(rowData);
+    });
+
+    // AJAX通信を開始
+    const apiurl = 'https://omth0nd8bf.execute-api.ap-northeast-1.amazonaws.com/dev/dataentry';
+
+
+    let hilow = '';
+
+    if (document.getElementById('inlineRadio1').checked === true){
+        hilow = '1';
+    }else{
+        hilow = '2';
+    }
+
+
+
+    var data = {
+        'talk': dataToSend,
+        'summarize-text': document.getElementById('summarize-text').value,
+        'hi-low-analysis': document.getElementById('hi-low-analysis').value,
+        'all-sentiment': document.getElementById('all-sentiment').value,
+        'csat': document.getElementById('csat').value,
+        'hilow': hilow,
+    }
+
+    $.ajax({
+        url: apiurl,
+        type: 'POST',
+        dataType: 'json',
+        contentType: 'application/json',
+        data: JSON.stringify(data), // JSON形式で送信
+        headers: {
+            'Authorization': idToken
+        }
+    })
+    .done((response) => {
+        // const results = response.results;
+        // console.log(results);
+
+        alert('登録完了');
+
+
+    })
+    .fail((jqXHR, textStatus, errorThrown) => {
+        console.error('AJAXエラー:', jqXHR);
+        alert('エラー発生: ' + textStatus + '\n' + errorThrown);
+    });
+}
+
+
+
+
+
+
+
+
+</script>
+
+
+<body>
+    <div class="container-xxl position-relative bg-white d-flex p-0">
+        <!-- Spinner Start -->
+        <div id="spinner" class="show bg-white position-fixed translate-middle w-100 vh-100 top-50 start-50 d-flex align-items-center justify-content-center">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+        <!-- Spinner End -->
+
+
+        <!-- Sidebar Start -->
+        <div class="sidebar pe-4 pb-3">
+            <nav class="navbar bg-light navbar-light">
+                <a href="index.html" class="navbar-brand mx-4 mb-3">
+                    <h3 class="text-primary"><i class="fa fa-hashtag me-2"></i>DASHMIN</h3>
+                </a>
+                <div class="d-flex align-items-center ms-4 mb-4">
+                    <div class="position-relative">
+                        <img class="rounded-circle" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                        <div class="bg-success rounded-circle border border-2 border-white position-absolute end-0 bottom-0 p-1"></div>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="mb-0">Jhon Doe</h6>
+                        <span>Admin</span>
+                    </div>
+                </div>
+                <div class="navbar-nav w-100">
+                    <a href="index.html" class="nav-item nav-link"><i class="fa fa-tachometer-alt me-2"></i>Dashboard</a>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown"><i class="fa fa-laptop me-2"></i>Elements</a>
+                        <div class="dropdown-menu bg-transparent border-0">
+                            <a href="button.html" class="dropdown-item">Buttons</a>
+                            <a href="typography.html" class="dropdown-item">Typography</a>
+                            <a href="element.html" class="dropdown-item">Other Elements</a>
+                        </div>
+                    </div>
+                    <a href="widget.html" class="nav-item nav-link"><i class="fa fa-th me-2"></i>Widgets</a>
+                    <a href="form.html" class="nav-item nav-link"><i class="fa fa-keyboard me-2"></i>Forms</a>
+                    <a href="table.html" class="nav-item nav-link"><i class="fa fa-table me-2"></i>Tables</a>
+                    <a href="chart.html" class="nav-item nav-link"><i class="fa fa-chart-bar me-2"></i>Charts</a>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle active" data-bs-toggle="dropdown"><i class="far fa-file-alt me-2"></i>Pages</a>
+                        <div class="dropdown-menu bg-transparent border-0">
+                            <a href="signin.html" class="dropdown-item">Sign In</a>
+                            <a href="signup.html" class="dropdown-item">Sign Up</a>
+                            <a href="404.html" class="dropdown-item">404 Error</a>
+                            <a href="blank.html" class="dropdown-item active">Blank Page</a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+        <!-- Sidebar End -->
+
+
+        <!-- Content Start -->
+        <div class="content">
+            <!-- Navbar Start -->
+            <nav class="navbar navbar-expand bg-light navbar-light sticky-top px-4 py-0">
+                <a href="index.html" class="navbar-brand d-flex d-lg-none me-4">
+                    <h2 class="text-primary mb-0"><i class="fa fa-hashtag"></i></h2>
+                </a>
+                <a href="#" class="sidebar-toggler flex-shrink-0">
+                    <i class="fa fa-bars"></i>
+                </a>
+                <form class="d-none d-md-flex ms-4">
+                    <input class="form-control border-0" type="search" placeholder="Search">
+                </form>
+                <div class="navbar-nav align-items-center ms-auto">
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fa fa-envelope me-lg-2"></i>
+                            <span class="d-none d-lg-inline-flex">Message</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end bg-light border-0 rounded-0 rounded-bottom m-0">
+                            <a href="#" class="dropdown-item">
+                                <div class="d-flex align-items-center">
+                                    <img class="rounded-circle" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                                    <div class="ms-2">
+                                        <h6 class="fw-normal mb-0">Jhon send you a message</h6>
+                                        <small>15 minutes ago</small>
+                                    </div>
+                                </div>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item">
+                                <div class="d-flex align-items-center">
+                                    <img class="rounded-circle" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                                    <div class="ms-2">
+                                        <h6 class="fw-normal mb-0">Jhon send you a message</h6>
+                                        <small>15 minutes ago</small>
+                                    </div>
+                                </div>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item">
+                                <div class="d-flex align-items-center">
+                                    <img class="rounded-circle" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                                    <div class="ms-2">
+                                        <h6 class="fw-normal mb-0">Jhon send you a message</h6>
+                                        <small>15 minutes ago</small>
+                                    </div>
+                                </div>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item text-center">See all message</a>
+                        </div>
+                    </div>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fa fa-bell me-lg-2"></i>
+                            <span class="d-none d-lg-inline-flex">Notificatin</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end bg-light border-0 rounded-0 rounded-bottom m-0">
+                            <a href="#" class="dropdown-item">
+                                <h6 class="fw-normal mb-0">Profile updated</h6>
+                                <small>15 minutes ago</small>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item">
+                                <h6 class="fw-normal mb-0">New user added</h6>
+                                <small>15 minutes ago</small>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item">
+                                <h6 class="fw-normal mb-0">Password changed</h6>
+                                <small>15 minutes ago</small>
+                            </a>
+                            <hr class="dropdown-divider">
+                            <a href="#" class="dropdown-item text-center">See all notifications</a>
+                        </div>
+                    </div>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                            <img class="rounded-circle me-lg-2" src="img/user.jpg" alt="" style="width: 40px; height: 40px;">
+                            <span class="d-none d-lg-inline-flex">John Doe</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end bg-light border-0 rounded-0 rounded-bottom m-0">
+                            <a href="#" class="dropdown-item">My Profile</a>
+                            <a href="#" class="dropdown-item">Settings</a>
+                            <a href="#" class="dropdown-item" onclick="logout()">Log Out</a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+            <!-- Navbar End -->
+
+
+
+
+
+
+            <!-- Content1 Start -->
+            <div class="container-fluid pt-4 px-4">
+                <div class="row g-4">
+
+
+                </div>
+            </div>
+            <!-- Content1 End -->
+
+
+
+
+
+
+
+            <!-- Form Start -->
+            <div class="container-fluid pt-4 px-4">
+                <div class="row g-4">
+                    <div class="col-sm-12 col-xl-12">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">NeXt-ISTT</h6>
+
+
+                            <!-- 検索フォーム -->
+                            <div class="row g-4">
+
+                                <!-- 登録日FROM -->
+                                <div class="col-3">
+                                    <label for="dateFrom">登録日FROM:</label>
+                                    <input type="date" class="form-control" id="dateFrom">
+                                </div>
+
+                                <!-- 登録日TO -->
+                                <div class="col-3">
+                                    <label for="dateTo">登録日TO:</label>
+                                    <input type="date" class="form-control" id="dateTo">
+                                </div>
+
+                                <!-- 感情分析 -->
+                                <div class="col-3">
+                                    <label for="sentiment">感情分析:</label>
+                                    <select class="form-control" id="sentiment">
+                                        <option value="">選択してください</option>
+                                        <option value="POSITIVE">POSITIVE</option>
+                                        <option value="NEGATIVE">NEGATIVE</option>
+                                        <option value="NEUTRAL">NEUTRAL</option>
+                                        <option value="MIXED">MIXED</option>
+                                    </select>
+                                </div>
+
+                                <!-- 顧客満足度 -->
+                                <div class="col-3">
+                                    <label for="csat">顧客満足度:</label>
+                                    <input type="number" class="form-control" id="csat" min="0" max="100">
+                                </div>
+                                                                
+                                <div class="col-3 mb-3">
+                                    <label for="performance">ハイパーローパー:</label>
+                                    <select class="form-select" id="performance" name="performance">
+                                        <option value="" selected>未選択で全検索</option>
+                                        <option value="1">ハイパフォーマー</option>
+                                        <option value="2">ローパフォーマー</option>
+                                    </select>
+                                </div>
+
+
+
+                            </div>
+
+
+
+
+                            <!-- ボタン群 -->
+                            <div class="mt-3">
+                                <!-- 検索ボタン -->
+                                <button class="btn btn-primary" onclick="searchData()">検索</button>
+                                <!-- キャンセルボタン -->
+                                <button class="btn btn-secondary" onclick="resetForm()">キャンセル</button>
+                            </div>
+
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Form End -->
+                        
+
+
+
+
+            <!-- Recent Sales Start -->
+            <div class="container-fluid pt-4 px-4">
+
+                <div class="bg-light text-center rounded p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-4">
+                        <h6 class="mb-0">検索結果</h6>
+                        <a href="">Show All</a>
+                    </div>
+
+                    <div class="table-responsive mb-3">
+                        <table class="table text-start align-middle table-bordered table-hover mb-0">
+                            <thead>
+                                <tr class="text-dark">
+                                    <th scope="col">選択</th>
+                                    <th scope="col">登録日</th>
+                                    <th scope="col">感情分析</th>
+                                    <th scope="col">顧客満足度</th>
+                                    <th scope="col">詳細</th>
+                                </tr>
+                            </thead>
+                            <tbody id="searchResults">
+                                <!-- 検索結果がここに動的に表示されます -->
+                            </tbody>
+                        </table>
+
+                    </div>
+
+
+
+
+                    <div class="bd-example">
+                        <div class="table-responsive" style="overflow-x: auto; max-width: 100%;">
+                            <table class="table" style="min-width: 1200px; table-layout: fixed;">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" style="width: 50px;">#</th>
+                                        <th scope="col" style="width: 150px;">Heading 1</th>
+                                        <th scope="col" style="width: 150px;">Heading 2</th>
+                                        <th scope="col" style="width: 150px;">Heading 3</th>
+                                        <th scope="col" style="width: 150px;">Heading 4</th>
+                                        <th scope="col" style="width: 150px;">Heading 5</th>
+                                        <th scope="col" style="width: 150px;">Heading 6</th>
+                                        <th scope="col" style="width: 150px;">Heading 7</th>
+                                        <th scope="col" style="width: 150px;">Heading 8</th>
+                                        <th scope="col" style="width: 150px;">Heading 9</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <th scope="row">1</th>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">2</th>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">3</th>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                        <td>Cell</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+
+
+
+                    <div class="mt-3 d-flex justify-content-between align-items-center mb-3">
+                        <!-- ボタン群 -->
+                        <div class="btn-group">
+                            <button class="btn btn-primary me-2" onclick="">選択項目からFAQを生成</button>
+                            <button class="btn btn-primary me-2" onclick="">選択項目をAI分析</button>
+                            <button class="btn btn-secondary me-2" onclick="">キャンセル</button>
+                        </div>
+                        
+                        <!-- コンボボックス -->
+                        <div>
+                            <select class="form-select w-auto">
+                                <option value="claude-3.5-sonnet" selected>Claude 3.5 Sonnet</option>
+                                <option value="claude-3.0-haiku">Claude 3.0 Haiku</option>
+                            </select>
+                        </div>
+                    </div>
+
+
+                    <div class="form-floating mb-3">
+                        <textarea class="form-control" placeholder="Leave a comment here" id="faq-text" style="height: 150px;"></textarea>
+                    </div>
+
+
+
+
+                </div>
+
+                
+            </div>
+            <!-- Recent Sales End -->
+
+
+
+
+
+
+
+            <!-- Chart Start -->
+            <div class="container-fluid pt-4 px-4">
+                <div class="row g-4">
+
+                    <div class="col-sm-12">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Multiple Line Chart</h6>
+                            <canvas id="sentiment-line-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-12 col-xl-6">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Customer</h6>
+                            <canvas id="piechart-sentiment-customer"></canvas>
+                        </div>
+                    </div>
+ 
+                    <div class="col-sm-12 col-xl-6">
+                        <div class="bg-light rounded h-100 p-4">
+                            <h6 class="mb-4">Operator</h6>
+                            <canvas id="piechart-sentiment-operator"></canvas>
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+            <!-- Chart End -->
+
+
+
+
+
+
+
+            <script>
+                // 検索ボタンが押されたときの処理
+                function searchData() {
+                    const dateFrom = document.getElementById('dateFrom').value;
+                    const dateTo = document.getElementById('dateTo').value;
+                    const sentiment = document.getElementById('sentiment').value;
+                    const csat = document.getElementById('csat').value;
+            
+                    // 仮の検索結果データ
+                    const searchData = [
+                        { date: '2024-11-01', sentiment: 'POSITIVE', csat: 80, id: 1 },
+                        { date: '2024-11-02', sentiment: 'NEGATIVE', csat: 60, id: 2 },
+                        { date: '2024-11-03', sentiment: 'NEUTRAL', csat: 70, id: 3 }
+                    ];
+            
+                    // 検索結果フィルタリング（仮のデータでフィルタリング）
+                    const filteredResults = searchData.filter(item => {
+                        const dateInRange = (!dateFrom || item.date >= dateFrom) && (!dateTo || item.date <= dateTo);
+                        const sentimentMatch = !sentiment || item.sentiment === sentiment;
+                        const csatMatch = !csat || item.csat == csat;
+                        return dateInRange && sentimentMatch && csatMatch;
+                    });
+            
+                    // 検索結果をテーブルに表示
+                    let resultHtml = '';
+                    filteredResults.forEach(result => {
+                        resultHtml += `
+                            <tr>
+                                <td><input class="form-check-input" type="checkbox"></td>
+                                <td>${result.date}</td>
+                                <td>${result.sentiment}</td>
+                                <td>${result.csat}</td>
+                                <td><a class="btn btn-sm btn-primary" href="">Detail</a></td>
+                            </tr>
+                        `;
+                    });
+            
+                    document.getElementById('searchResults').innerHTML = resultHtml;
+                }
+            
+                // キャンセルボタンが押されたときの処理
+                function resetForm() {
+                    document.getElementById('dateFrom').value = '';
+                    document.getElementById('dateTo').value = '';
+                    document.getElementById('sentiment').value = '';
+                    document.getElementById('csat').value = '';
+                    document.getElementById('searchResults').innerHTML = '';
+                }
+            </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            <!-- Chat Start -->
+            <div class="container-fluid pt-4 px-4">
+                <div class="bg-light rounded h-100 p-4">
+                    <div class="col-sm-12 col-xl-12">
+                        <h6 class="mb-3">Chat Window</h6>
+                        
+                        <div class="col-sm-12 col-xl-12">
+                            <div class="d-flex justify-content-between flex-nowrap">
+                                <select class="form-select form-select-sm mb-3 mr-3" id="llmcombo" style="width: 40%;" aria-label=".form-select-sm example">
+                                    <option>Select LLM model</option>
+                                    <option value="ClaudeV3haiku" selected>Claude3 haiku</option>
+                                    <option value="ClaudeV3sonnet">Claude3.5 sonnet</option>
+                                    <option value="NovaLite">Nova Lite</option>
+                                    <option value="NovaPro">Nova Pro</option>
+                                </select>
+
+                                <div style="flex-grow: 0;"></div>
+                                <p class="mb-0" id="combomsg2"></p>
+                            </div>
+                        </div>
+
+                        <div id="chatvector" class="mb-2">
+                            <div id="messages"></div>
+                        </div>
+
+                        <div class="mb-2">
+                            <textarea class="form-control" id="log" style="height: 70px;"></textarea>
+                        </div>
+
+
+
+                        <div class="controls d-flex align-items-center">
+                            <button id="sendBtn" class="btn btn-primary me-2" onclick="sendChat()">送信</button>
+                            <button id="dlCsv" class="btn btn-primary" onclick="downCsv()">CSVダウンロード</button>
+                            <button id="confBtn" type="button" class="btn btn-warning m-2" onclidk="openModal()">設定</button>
+                        </div>
+
+                        <input type="file" id="fileInput" style="display: none;" accept=".jpeg, .jpg, .png , .webp, .gif">
+                        <button id="imgBtn" type="button" class="btn btn-sm btn-primary me-2" onclick="openFileSelector()">画像選択</button>
+                        <button id="imgClrBtn" type="button" class="btn btn-sm btn-primary me-2" onclick="clearSelectedFile()">画像クリア</button>
+
+                        <p></p>
+                        <div id="imageContainer">
+                            <img id="selectedImage" style="max-width: 200px;">
+                            <div class="popup" id="imagePopup">
+                                <img id="popupImage">
+                            </div>
+                        </div>
+
+                        <div class="col-sm-12 col-xl-12">
+                            <input class="form-control form-control-sm mb-3" type="text" id="nodeused" aria-label="node info" style="width: 50%">
+
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+            <!-- Chat End -->
+
+
+
+
+
+
+
+
+
+
+            <!-- Token Start -->
+            <div class="container-fluid pt-4 px-4">
+                <div class="row g-4">
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="bg-light rounded d-flex align-items-center justify-content-between p-4">
+                            <i class="fa fa-chart-line fa-3x text-primary"></i>
+                            <div class="ms-3">
+                                <p class="mb-2">Input Token</p>
+                                <h6 id="tokenValue" class="mb-0">0</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="bg-light rounded d-flex align-items-center justify-content-between p-4">
+                            <i class="fa fa-chart-bar fa-3x text-primary"></i>
+                            <div class="ms-3">
+                                <p class="mb-2">Output Token</p>
+                                <h6 id="tokenValueOutput" class="mb-0">0</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="bg-light rounded d-flex align-items-center justify-content-between p-4">
+                            <i class="fa fa-chart-area fa-3x text-primary"></i>
+                            <div class="ms-3">
+                                <p class="mb-2">Total Token</p>
+                                <h6 id="tokenValueTotal" class="mb-0">0</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="bg-light rounded d-flex align-items-center justify-content-between p-4">
+                            <i class="fa fa-chart-pie fa-3x text-primary"></i>
+                            <div class="ms-3">
+                                <p class="mb-2">Token Cost</p>
+                                <h6 id="tokenCost" class="mb-0">$0.0</h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Token End -->
+
+
+
+            <!-- Footer Start -->
+            <div class="container-fluid pt-4 px-4">
+                <div class="bg-light rounded-top p-4">
+                    <div class="row">
+                        <div class="col-12 col-sm-6 text-center text-sm-start">
+                            &copy; <a href="#">Your Site Name</a>, All Right Reserved. 
+                        </div>
+                        <div class="col-12 col-sm-6 text-center text-sm-end">
+                            <!--/*** This template is free as long as you keep the footer author’s credit link/attribution link/backlink. If you'd like to use the template without the footer author’s credit link/attribution link/backlink, you can purchase the Credit Removal License from "https://htmlcodex.com/credit-removal". Thank you for your support. ***/-->
+                            Designed By <a href="https://htmlcodex.com">HTML Codex</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Footer End -->
+        </div>
+        <!-- Content End -->
+
+
+        <!-- Back to Top -->
+        <a href="#" class="btn btn-lg btn-primary btn-lg-square back-to-top"><i class="bi bi-arrow-up"></i></a>
+    </div>
+
+    <!-- ajax通信に必要。新バージョン -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+
+    <!-- 以下のjavascript、上に移動すると、画面広げるボタンが聞かなくなるので注意 -->
+    <!-- JavaScript Libraries -->
+    <!-- <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="lib/chart/chart.min.js"></script>
+    <script src="lib/easing/easing.min.js"></script>
+    <script src="lib/waypoints/waypoints.min.js"></script>
+    <script src="lib/owlcarousel/owl.carousel.min.js"></script>
+    <script src="lib/tempusdominus/js/moment.min.js"></script>
+    <script src="lib/tempusdominus/js/moment-timezone.min.js"></script>
+    <script src="lib/tempusdominus/js/tempusdominus-bootstrap-4.min.js"></script>
+
+    <!-- Template Javascript -->
+    <script src="js/main.js"></script>
+
+    <!-- calcCost -->
+    <script src="js/option.js"></script>
+
+
+    <script>
+        var dt;
+        var messageArray = [];
+
+        $(document).ready(function(){
+            
+            $('#log').on('keydown', function(event) {
+                if(event.keyCode == 13 && !event.shiftKey){
+                    event.preventDefault();
+                    $('#sendBtn').click();
+                }
+            });
+
+            $('#log').on('keydown', function(event) {
+                if(event.keyCode == 13 && event.shiftKey){
+                    event.preventDefault();
+                    var val = $(this).val();
+                    $(this).val(val + "\n");
+                }
+            });
+
+
+
+        })
+        function addMessage(text, position, base64data) {
+            var messagesDiv = document.getElementById("messages");
+            var messageDiv = document.createElement("div");
+            var ChatDiv = document.getElementById("chat");
+            // const chkNode = document.getElementById("nodeused").value;
+            // const cmbUnite = document.getElementById("unitecombo").value;
+
+            messageDiv.classList.add("message", position);
+
+            // if (chkNode == "ユナイト使用"){
+            //     messageDiv.classList.add("yellow-border");
+            // }
+
+            messageDiv.innerHTML = text;
+
+            messagesDiv.appendChild(messageDiv);
+
+            if (base64data) {
+                const img = codument.createElement("img");
+                img.src = base64data;
+                img.style.maxWidth = "50px";
+                messageDiv.appendChild(img);
+
+                messageArray.forEach(function (message) {
+                    message[3] = "";
+                });
+            }
+
+            messagesDiv.appendChild(messageDiv);
+            messageArray.push([text, position, 'cmbUnite', base64data]);
+            // messageArray.push([text, position, base64data]);
+
+            var msgDiv = document.getElementById("messages");
+            msgDiv.scrollTop = msgDiv.scrollHeight;
+        }
+
+        async function sendChat() {
+            const apiurl = 'https://asdfasdf.execute-api.ap-northeast-1.amazonaws.com/dev/chat';
+
+            dt = document.getElementById("log").value;
+            
+            const selectedImageFile = document.getElementById("fileInput").files[0];
+            let imgdata = "";
+
+            if (selectedImageFile) {
+                // ファイル選択時
+                try {
+                    const base64Image = await encodeImageToBase64(selectedImageFile);
+                    imgdata = base64Image;
+                    clearSelectedFile();
+                } catch (error) {
+                    console.error("Base64 Encode Error: ", error);
+                }
+            } else {
+                // ファイル未選択
+            }
+
+            if (dt == "") {
+                return false;
+            }
+
+            const cmb = document.getElementById("llmcombo").value;
+            if (cmb=="Select LLM model"){
+                alert("使用するLLMをコンボボックスから選択してください。");
+                return false;
+            }
+
+            // chat画面反映
+            addMessage(dt, "right", imgdata);
+
+            const data = {
+                "targettext": dt,
+                "talkhistory": messageArray,
+                "tenant_no": "00000",
+                "chat_history": "his",
+                "llmcmb": cmb,
+                "sysrole": "あなたはAIです。AIとして回答してください。",
+                "maxtokens": "maxtokens",
+                "temp": "temp",
+                "rep": "rep",
+            }
+
+            document.getElementById("log").value = "";
+
+            $.ajax({
+                url: apiurl,
+                type: 'POST',
+                dataType: 'json',
+                data: JSON.stringify(data), 
+                headers: {
+                    'Authorization': idToken
+                }
+            })
+            .done(function(response) {
+                let item = "";
+                item = response.Items;
+
+                const data_json = JSON.parse(JSON.stringify(response));
+                const text = data_json["data"]["gpttext"];
+                
+                // document.getElementById("nodeused").value = data_json["data"]["nodeused"]
+                // document.getElementById("nodetext").value = data_json["data"]["nodetext"]
+
+                const prompt_tokens = data_json['data']['prompt_tokens'];
+                const completion_tokens = data_json['data']['completion_tokens'];
+                const total_tokens = data_json['data']['total_tokens'];
+                
+                calcCost(cmb, prompt_tokens, completion_tokens, total_tokens);
+
+                addMessage(text, "left", "");
+
+                // resetTimer();
+
+            })
+            .fail(function(jqXHR, textStatus, errorThrown){
+                console.log(textStatus);
+                alert('APIエラーです。');
+            })
+            
+        }
+    </script>
+
+</body>
+
+</html>
