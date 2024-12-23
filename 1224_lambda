@@ -122,7 +122,7 @@ MASKING_LABELS_SENT = {
 def lambda_handler(event, context):
 
     # 使用例
-    input_text = "昨日、田中太郎と佐藤花子が銀座で会議に出席しました。なお、田中の電話番号は044-555-111です。住所は、東京都目黒区東山1-5-2です。郵便番号は152-1124"
+    input_text = "昨日、田中太郎と佐藤花子が銀座で会議に出席しました。なお、田中の電話番号は044-555-111です。住所は、東京都目黒区です。郵便番号は152-1124"
     # input_text = "広島県広島市南区段原南"
     # masked_text = mask_person_names(input_text)
 
