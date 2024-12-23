@@ -1,0 +1,370 @@
+#【dataentry】
+import json
+import boto3
+import uuid
+from datetime import datetime
+
+# DynamoDBのリソースを作成
+dynamodb = boto3.resource('dynamodb')
+
+def lambda_handler(event, context):
+    try:
+        # 受信データを解析
+        data = json.loads(event['body'])
+        agent_name = data['agent-name']
+        talk = data['talk']
+        summarize_text = data['summarize-text']
+        hi_low_analysis = data['hi-low-analysis']
+        all_sentiment = data['all-sentiment']
+        csat = data['csat']
+        hi_low_analysis = data['hi-low-analysis']
+        
+        # DynamoDBテーブル
+        table_name = 'ISTT_NEXT'
+        table = dynamodb.Table(table_name)
+
+        # TENANT_NOの生成（5桁数値）
+        tenant_no = '00000'
+
+        # UUID_TIMESTAMPの生成
+        unique_id = str(uuid.uuid4())
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        uuid_timestamp = f"{unique_id}-{timestamp}"
+
+        # DynamoDBに登録するデータ
+        item = {
+            'TENANT_NO': tenant_no,
+            'UUID_TIMESTAMP': uuid_timestamp,
+            'AGENT_NAME': agent_name,
+            'TALK': talk,
+            'SUMMARIZE_TEXT': summarize_text,
+            'HI_LOW_ANALYSIS': hi_low_analysis,
+            'ALL_SENTIMENT': all_sentiment,
+            'CSAT': csat,
+            'HILOW': hilow
+        }
+
+        # データをDynamoDBに登録
+        table.put_item(Item=item)
+
+        print('OKです')
+
+        return{
+            'isBase64Encoded': False,
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, GET',
+                'Access-Control-Allow-Origin': '*',
+            },
+            'body': json.dumps({'result': 'OK'})
+        }
+
+    except Exception as e:
+        # return {
+        #     'statusCode': 500,
+        #     'body': json.dumps({'error': str(e)})
+        # }
+
+        print('エラーです')
+        print(str(e))
+
+        return{
+            'isBase64Encoded': False,
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, GET',
+                'Access-Control-Allow-Origin': '*',
+            },
+            'body': json.dumps({'result': 'ERROR'})
+        }
+
+
+
+#【g】
+import os
+import sys
+
+sys.path.append('/mnt/packages/ginza')
+
+print(sys.path)
+
+
+import spacy
+# from spacy.symbols import obj
+
+nlp = spacy.load('ja_ginza')
+
+# マスキングするエンティティとその置換文字列
+MASKING_LABELS = {
+    "Person": "[PERSON]",
+    "Loc": "[LOCATION]",
+    "City": "[CITY]",
+    "Org": "[ORGANIZATION]",
+    "Date": "[DATE]",
+    "Time": "[TIME]",
+    "Money": "[MONEY]",
+    # 必要に応じて追加可能
+}
+
+MASKING_LABELS_SENT = {
+    "名詞-固有名詞-人名-姓": "●●",
+    "名詞-固有名詞-人名-名": "○○",
+    "名詞-固有名詞-地名-一般": "[CITY]",
+    # 必要に応じて追加可能
+}
+
+
+
+def lambda_handler(event, context):
+
+    # 使用例
+    input_text = "昨日、田中太郎と佐藤花子が銀座で会議に出席しました。なお、田中の電話番号は044-555-111です。住所は、東京都目黒区東山1-5-2です。郵便番号は152-1124"
+    # input_text = "広島県広島市南区段原南"
+    # masked_text = mask_person_names(input_text)
+
+    # print("元のテキスト:", input_text)
+    # print("マスキング後のテキスト:", masked_text)
+
+
+
+    masked_text = mask_sensitive_information(input_text)
+
+    print("元のテキスト:", input_text)
+    print("マスキング後のテキスト:", masked_text)
+
+
+
+
+
+    return {"statusCode": 200, "body": masked_text}
+
+
+def mask_person_names(text):
+    # テキストを解析
+    doc = nlp(text)
+    
+    # マスキングしたテキストを作成
+    masked_text = text
+    for ent in doc.ents:
+        
+        # print('ent.labelは...')
+        # print(ent.label_)
+        # print('entは...')
+        # print(ent)
+
+        if ent.label_ == "Person":  # 人名の場合
+            # 人名をマスキング
+            masked_text = masked_text.replace(ent.text, "[PERSON]")
+    
+    return masked_text
+
+
+def mask_sensitive_information(text):
+    # テキストを解析
+    doc = nlp(text)
+    
+    # 元のテキストのコピーを作成
+    masked_text = text
+    masked_text2 = text
+    
+    for sent in doc.sents:
+        for token in sent:
+            print('tokentag and orth is...')
+            print(token.tag_)
+            print(token.orth_)
+
+            if token.tag_ in MASKING_LABELS_SENT:  # ラベルがマスキング対象の場合
+                print('ループ中token.tag_ is...')
+                print(token.tag_)
+                masked_text2 = masked_text2.replace(token.orth_, MASKING_LABELS_SENT[token.tag_])
+        
+
+    print('新バージョン文字列')
+    print(masked_text2)
+
+
+    # エンティティをマスキング
+    for ent in doc.ents:
+        print('ent word and .label_is...')
+        print(ent.text)
+        print(ent.label_)
+
+
+
+
+        if ent.label_ == 'City':
+            print('住所:', ent.text)
+
+        if ent.label_ in MASKING_LABELS:  # ラベルがマスキング対象の場合
+            # print('ent.label_is...')
+            print(ent.label_)
+
+            masked_text = masked_text.replace(ent.text, MASKING_LABELS[ent.label_])
+    
+    return masked_text
+
+
+
+
+#【chat】
+
+import json
+import os
+import re
+import shutil
+import base64
+
+import boto3
+
+s3_client = boto3.client('s3')
+
+
+def lambda_handler(event, context):
+
+    try:
+        data = json.loads(event['body'])
+        target_text = data['targettext']
+        talk_history = data['talkhistory']
+        tenant_no = '00000'
+        llm_cmb = data['llmcmb']
+        system_role = data['sysrole']
+
+        p_max_tokens = '4096'
+        p_temp = '0'
+        p_rep = '0'
+
+        if llm_cmb == 'NovaPro' or llm_cmb == 'NovaLite':
+            bedrock_runtime = boto3.client('bedrock-runtime', region_name = 'us-east-1')
+
+            if llm_cmb == 'NovaPro':
+                model_id = 'amazon.nova-pro-v1:0'
+
+            elif llm_cmb == 'NovaLite':
+                model_id = 'amazon.nova-lite-v1:0'
+
+        elif llm_cmb == 'ClaudeV3sonnet' or llm_cmb == 'ClaudeV3haiku':
+            bedrock_runtime = boto3.client('bedrock-runtime', region_name = 'us-west-2')
+
+            if llm_cmb == 'ClaudeV3sonnet':
+                model_id = 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+
+            elif llm_cmb == 'ClaudeV3haiku':
+                model_id = 'anthropic.claude-3-haiku-20240307-v1:0'
+
+        system = [{'text': f'{system_role}'}]
+        prompt = []
+
+
+        # # 最新のn件だけに絞り込む
+        # # userから始まらないとエラーになるらしいのでコメントアウト
+        # n = 100
+        # if len(talk_history) > n:
+        #     talk_history = talk_history[-n:]
+
+        for message in talk_history:
+            role = 'assistant' if message[1] == 'left' else 'user'
+            content_list = []
+
+            if role == 'user' and message[3]:
+                base64_data = message[3].split(',',1)[1] if ',' in message[3] else message[3]
+                # media_type = message[3].split(';')[0].split(':')[1] if ';' in message[3] and ':' in message[3]
+                media_type = message[3].split(';')[0].split(':')[1] if ';' in message[3] and ':' in message[3] else None
+
+
+                media_type = media_type.replace('image/', '')
+
+                if base64_data:
+                    image_data = base64.b64decode(base64_data)
+
+                    content_list.append(
+                        {'image': {
+                            'format': media_type,
+                            'source': {'bytes': image_data}
+                        }}
+                    )
+
+            content_list.append({
+                'text': message[0]
+            })
+
+            prompt.append({
+                'role': role,
+                'content': content_list
+            })
+
+            inference_config = {
+                'maxTokens': int(p_max_tokens),
+                'temperature': float(p_temp),
+                'topP': float(p_rep),
+            }
+
+        print('prompt is...')
+        print(prompt)
+
+        print('system is...')
+        print(system)
+
+        response = bedrock_runtime.converse (
+            modelId = model_id,
+            messages = prompt,
+            inferenceConfig = inference_config,
+            system = system
+        )
+
+        answer = response['output']['message']['content'][0]['text']
+        tokens_count = response['usage']['inputTokens']
+        tokens_count_output = response['usage']['outputTokens']
+        totaltoken = response['usage']['totalTokens']
+
+        jsn = {
+            'data': {
+                'gpttext': answer,
+                'prompt_tokens': tokens_count,
+                'completion_tokens': tokens_count_output,
+                'total_tokens': totaltoken,
+                'nodeused': 'nodeused',
+                'nodetext': 'nodetext'
+            }
+        }
+
+        print('API返却値')
+        print(jsn)
+
+        return {
+            'isBase64Encoded': False,
+            'statusCode': '200',
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST,GET',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(jsn)
+        }
+
+    except Exception as e:
+        # エラーの詳細をログに出力
+        print(f"Error: {str(e)}")
+        
+        jsn = {
+            'data': {'gpttext': 'API error'}
+        }
+
+        return {
+            'isBase64Encoded': False,
+            'statusCode': '500',
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST,GET',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(jsn)
+        }
+
+
+        
