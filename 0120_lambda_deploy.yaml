@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  EnvType:
+    Type: String
+    Default: dev
+  AccountId:
+    Type: String
+    Default: 333344445555
+
+Resources:
+  GPTtestdev:
+    Type: AWS::Serverless::Function
+    # ② DeletionPolicyの追加
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !Sub GPT-test-${EnvType}  # 関数名の指定
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      MemorySize: 256
+      Timeout: 60
+      Role: !Sub arn:aws:iam::${AccountId}:role/take-testrole
+      CodeUri: GPT-test-dev  # CodeUriは変数を使えない
+      # CodeUri: 
+      #   Fn::ForEach:
+      #     - !Sub "GPT-test-${EnvType}"  # Cloud9のディレクトリ内の相対パス
+      #     - !Ref EnvType  # 環境タイプを参照
+
+  GPTtest2dev:
+    Type: AWS::Serverless::Function
+    # ② DeletionPolicyの追加
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !Sub GPT-test2-${EnvType} # 関数名の指定
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      MemorySize: 256
+      Timeout: 21
+      Role: !Sub arn:aws:iam::${AccountId}:role/take-testrole
+      CodeUri: GPT-test2-dev  # コードの場所
+      # CodeUri:
+      #   Fn::Sub: "GPT-test2-${EnvType}"
+      
+  GPTtest3dev:
+    Type: AWS::Serverless::Function
+    # ② DeletionPolicyの追加
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !Sub GPT-test3-${EnvType} # 関数名の指定
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      MemorySize: 128
+      Timeout: 40
+      Role: !Sub arn:aws:iam::${AccountId}:role/take-testrole
+      CodeUri: GPT-test3-dev  # コードの場所
+      # CodeUri:
+      #   Fn::Sub: "GPT-test2-${EnvType}"
+
+  GPTDataEntrydev:
+    Type: AWS::Serverless::Function
+    # ② DeletionPolicyの追加
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !Sub GPT-DataEntry-${EnvType} # 関数名の指定
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      MemorySize: 128
+      Timeout: 60
+      Role: !Sub arn:aws:iam::${AccountId}:role/take-testrole
+      CodeUri: GPT-DataEntry-dev  # コードの場所
+      # CodeUri:
+      #   Fn::Sub: "GPT-test2-${EnvType}"
+
+  GPTtest4dev:
+    Type: AWS::Serverless::Function
+    # ② DeletionPolicyの追加
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !Sub GPT-test4-${EnvType} # 関数名の指定
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      MemorySize: 256
+      Timeout: 40
+      Role: !Sub arn:aws:iam::${AccountId}:role/take-testrole
+      CodeUri: GPT-test4-dev  # コードの場所
+      
