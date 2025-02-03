@@ -1,0 +1,6 @@
+
+var sessionId;
+sessionId = crypto.randomUUID();
+
+
+
