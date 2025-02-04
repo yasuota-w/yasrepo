@@ -1,0 +1,88 @@
+import json
+import os
+import boto3
+from boto3.dynamodb.conditions import Key, Attr
+from datetime import datetime
+
+
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(os.environ['TARGET_TABLE'])
+
+def lambda_handler(event, context):
+
+    data = json.loads(event['body'])
+    tenant_no = data['tenant_no']
+    date_from = data['date_from']
+    date_to = data['date_to']
+    sentiment = data['sentiment']
+    csat = data['csat']
+    hilow = data['hilow']
+
+    print('DATES')
+    print(date_from)
+    print(date_to)
+    print(data)
+
+    # **日付のフォーマット変換**
+    date_from = datetime.strptime(date_from, "%Y-%m-%d").strftime("%Y%m%d") + "-000000"
+    date_to = datetime.strptime(date_to, "%Y-%m-%d").strftime("%Y%m%d") + "-999999"
+
+
+
+    # KeyConditionExpressionの作成
+    key_condition = Key('TENANT_NO').eq(tenant_no) & Key('TIMESTAMP_UUID').between(date_from, date_to)
+
+    filter_expression = None
+
+    if csat:
+        filter_expression = Attr('CSAT').eq(csat)
+
+    if sentiment:
+        if filter_expression:
+            filter_expression = filter_expression & Attr('SENTIMENT').eq(sentiment)
+        else:
+            filter_expression = Attr('ALL_SENTIMENT').eq(sentiment)
+
+    try:
+            
+        # queryパラメータの作成
+        query_params = {
+            'KeyConditionExpression': key_condition,
+            'ConsistentRead': False,
+            'ScanIndexForward': False,  # 降順
+        }
+
+
+        # FilterExpressionがある場合のみ追加
+        if filter_expression:
+            query_params['FilterExpression'] = filter_expression
+
+
+        # クエリ実行
+        response = table.query(**query_params)
+
+        items = response.get('Items', [])
+
+        print(items)
+
+
+        return{
+            'isBase64Encoded': False,
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST,GET',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(items)
+        }
+
+    except Exception as e:
+        print('error')
+        print(str(e))
+
+        return {
+            'statusCode': 500,
+            'body': json.dumps(f'Error Querying DynamoDB: {str(e)}')
+        }
