@@ -1,0 +1,262 @@
+import json
+import os
+import re
+import shutil
+import base64
+
+import boto3
+from pprint import pprint
+
+
+s3_client = boto3.client('s3')
+
+# bar = boto3.client('bedrock-agent-runtime')
+bar = boto3.client('bedrock-agent-runtime', region_name='us-west-2')
+
+def lambda_handler(event, context):
+    print('boto3 vertion is {0}'.format(boto3.__version__))
+
+    try:
+        data = json.loads(event['body'])
+        target_text = data['targettext']
+        talk_history = data['talkhistory']
+        tenant_no = '00000'
+        llm_cmb = data['llmcmb']
+        system_role = data['sysrole']
+        search_result = data['search_result']
+        session_id = data['session_id']
+
+        p_max_tokens = '4096'
+        p_temp = '0'
+        p_rep = '0'
+
+        print('検索結果テキスト')
+        print(search_result)
+
+        print('session_id is...')
+        print(session_id)
+
+
+        if llm_cmb == 'NovaPro' or llm_cmb == 'NovaLite':
+            bedrock_runtime = boto3.client('bedrock-runtime', region_name = 'us-east-1')
+
+            if llm_cmb == 'NovaPro':
+                model_id = 'amazon.nova-pro-v1:0'
+
+            elif llm_cmb == 'NovaLite':
+                model_id = 'amazon.nova-lite-v1:0'
+
+        elif llm_cmb == 'ClaudeV3sonnet' or llm_cmb == 'ClaudeV3haiku':
+            bedrock_runtime = boto3.client('bedrock-runtime', region_name = 'us-west-2')
+
+            if llm_cmb == 'ClaudeV3sonnet':
+                model_id = 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+
+
+            elif llm_cmb == 'ClaudeV3haiku':
+                model_id = 'anthropic.claude-3-haiku-20240307-v1:0'
+
+        system = [{'text': f'{system_role}'}]
+        prompt = []
+
+
+        # # 最新のn件だけに絞り込む
+        # # userから始まらないとエラーになるらしいのでコメントアウト
+        # n = 100
+        # if len(talk_history) > n:
+        #     talk_history = talk_history[-n:]
+
+        for message in talk_history:
+            role = 'assistant' if message[1] == 'left' else 'user'
+            content_list = []
+
+            if role == 'user' and message[3]:
+                base64_data = message[3].split(',',1)[1] if ',' in message[3] else message[3]
+                # media_type = message[3].split(';')[0].split(':')[1] if ';' in message[3] and ':' in message[3]
+                media_type = message[3].split(';')[0].split(':')[1] if ';' in message[3] and ':' in message[3] else None
+
+
+                media_type = media_type.replace('image/', '')
+
+                if base64_data:
+                    image_data = base64.b64decode(base64_data)
+
+                    content_list.append(
+                        {'image': {
+                            'format': media_type,
+                            'source': {'bytes': image_data}
+                        }}
+                    )
+
+            content_list.append({
+                'text': message[0]
+            })
+
+            prompt.append({
+                'role': role,
+                'content': content_list
+            })
+
+            inference_config = {
+                'maxTokens': int(p_max_tokens),
+                'temperature': float(p_temp),
+                'topP': float(p_rep),
+            }
+
+        print('prompt is...')
+        print(prompt)
+
+        print('system is...')
+        print(system)
+
+
+        if search_result == "":
+            search_result = target_text
+        else:
+            search_result = generate_xml_prompt(search_result)
+
+        print('最終プロンプト')
+        print(search_result)
+
+        response = bar.invoke_inline_agent(
+            actionGroups=[
+                {
+                    'actionGroupName': 'CodeInterpreterAction',
+                    'parentActionGroupSignature': 'AMAZON.CodeInterpreter'
+                }
+            ],
+            enableTrace = True,
+            endSession = False,
+            foundationModel = model_id,
+            # inputText = target_text,
+            inputText = search_result,
+            instruction = 'あなたは親切なAIアシスタントです。ユーザーの質問に回答してください。必ず日本語で返答するように。何かを分析する依頼があったら、持っているデータから解析を試みてください。',
+            sessionId = session_id
+        )
+
+        print("Trace:")
+
+        for event in response['completion']:
+            print('event in response[completion]ループ内')
+
+            if 'trace' in event:
+                # print('if trace in event　の分岐内')
+                # print()
+                # pprint(event['trace']['trace']['orchestrationTrace'])
+
+                trace_data = event['trace']['trace'].get('orchestrationTrace', {})
+                if 'modelInvocationOutput' in trace_data:
+                    usage_data = trace_data['modelInvocationOutput'].get('metadata', {}).get('usage', {})
+                    input_tokens = usage_data.get('inputTokens', 0)
+                    output_tokens = usage_data.get('outputTokens', 0)
+                    print(f"Input Tokens: {input_tokens}, Output Tokens: {output_tokens}")
+
+
+
+            if 'chunk' in event:
+                break
+        # print("------")
+        # print("Output:")
+        # print(event['chunk']['bytes'].decode('utf-8'))
+
+        # print(response['completion']['modelInvocationOutput']['metadata']['usage'][inputTokens])
+
+
+        # {'modelInvocationOutput': {'metadata': {'usage': {'inputTokens': 443,'outputTokens': 75}},
+
+        print('event前')
+        # event = next((ev for ev in response.get('completion', []) if 'chunk' in ev), None)
+
+
+
+        # response = bedrock_runtime.converse (
+        #     modelId = model_id,
+        #     messages = prompt,
+        #     inferenceConfig = inference_config,
+        #     system = system
+        # )
+
+        answer = event['chunk']['bytes'].decode('utf-8')
+
+
+        # print('event is')
+        # {'modelInvocationOutput': {'metadata': {'usage': {'inputTokens': 9020,
+        # print(event['trace']['trace']['orchestrationTrace'].decode('utf-8'))
+
+        tokens_count = input_tokens
+        tokens_count_output = output_tokens
+        totaltoken = input_tokens + output_tokens
+
+
+        # usage_data = response.get('trace', {}).get('trace', {}).get('modelInvocationOutput', {}).get('metadata', {}).get('usage', {})
+
+        # input_tokens = usage_data.get('inputTokens', 0)
+        # output_tokens = usage_data.get('outputTokens', 0)
+
+        # print(f"消費トークン数: 入力 {input_tokens}, 出力 {output_tokens}")
+
+
+
+        # answer = response['output']['message']['content'][0]['text']
+        # tokens_count = response['usage']['inputTokens']
+        # tokens_count_output = response['usage']['outputTokens']
+        # totaltoken = response['usage']['totalTokens']
+
+        jsn = {
+            'data': {
+                'gpttext': answer,
+                'prompt_tokens': tokens_count,
+                'completion_tokens': tokens_count_output,
+                'total_tokens': totaltoken,
+                'nodeused': 'nodeused',
+                'nodetext': 'nodetext'
+            }
+        }
+
+        print('API返却値')
+        print(jsn)
+
+        return {
+            'isBase64Encoded': False,
+            'statusCode': '200',
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST,GET',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(jsn)
+        }
+
+    except Exception as e:
+        # エラーの詳細をログに出力
+        print(f"Error: {str(e)}")
+        
+        jsn = {
+            'data': {'gpttext': 'API error'}
+        }
+
+        return {
+            'isBase64Encoded': False,
+            'statusCode': '500',
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST,GET',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(jsn)
+        }
+
+def generate_xml_prompt(result):
+    # プロンプトのベース部分
+    instruction = """<instruction>
+    以下の対話履歴を参照して、ユーザーの質問に回答したり、データをもとに解析やグラフを生成したりしてください。
+</instruction>"""
+
+    context = f"<context>\n    <conversation>\n{result}\n    </conversation>\n</context>"
+
+    # プロンプト全体を結合して1つの変数に
+    full_prompt = f"{instruction}\n\n{context}"
+
+    return full_prompt
