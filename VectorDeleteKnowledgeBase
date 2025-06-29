@@ -1,0 +1,256 @@
+import boto3
+import time
+import botocore
+from botocore.exceptions import ClientError
+
+rds = boto3.client('rds-data')
+s3 = boto3.client('s3')
+s3_resource = boto3.resource('s3')
+bedrock = boto3.client('bedrock-agent')
+
+# 定数（共通設定）
+CLUSTER_ARN = "arn:aws:rds:ap-northeast-1:384873654994:cluster:knowledge-base-vectordb"
+SECRET_ARN = "arn:aws:secretsmanager:ap-northeast-1:384873654994:secret:bedrock_access_aurora_serverless2-NANTOKA"
+DATABASE_NAME = "knowledge_base_aurora"
+SCHEMA_NAME = "bedrock_knowledgebase"
+S3_BUCKET = "rag-knowledge-base-aurora"
+ROLE_ARN = "arn:aws:iam::384873654994:role/TestKnowledgeBaseRoleNext"
+
+def lambda_handler(event, context):
+    tenant_id = event['tenant_id']  # e.g., "00001"
+    table_name = f"dodeuce_{tenant_id}"
+    full_table_name = f"{SCHEMA_NAME}.{table_name}"
+    kb_name = f"knowledge-base-aurora-serverless-{tenant_id}"
+    s3_prefix = f"{tenant_id}/"
+    
+    # ステップ1: ナレッジベースIDを取得
+    kb_id = get_knowledge_base_id(kb_name)
+    if not kb_id:
+        return {
+            "message": f"Knowledge base for tenant {tenant_id} not found.",
+            "status": "NOT_FOUND"
+        }
+    
+    # ステップ2: S3バケット内のテナント関連ファイルを削除（プレースホルダーを除く）
+    clear_s3_tenant_files(S3_BUCKET, s3_prefix)
+    
+    # ステップ3: ナレッジベースを同期させる（S3の変更をRDSに反映）
+    datasource_id = get_data_source_id(kb_id)
+    if datasource_id:
+        sync_data_source(kb_id, datasource_id)
+        
+        # 同期が完了するのを待つ
+        wait_for_sync_completion(kb_id, datasource_id)
+    
+    # ステップ4: データソースを削除
+    if datasource_id:
+        delete_data_source(kb_id, datasource_id)
+    
+    # ステップ5: ナレッジベースを削除
+    delete_knowledge_base(kb_id)
+    
+    # ステップ6: RDSテーブルを削除
+    delete_rds_table(full_table_name)
+    
+    # ステップ7: S3バケット内のテナントフォルダを完全に削除
+    delete_s3_tenant_folder(S3_BUCKET, s3_prefix)
+    
+    return {
+        "message": f"Knowledge base and related resources for tenant {tenant_id} successfully deleted.",
+        "status": "SUCCESS"
+    }
+
+def get_knowledge_base_id(kb_name):
+    """ナレッジベース名からIDを取得する"""
+    try:
+        response = bedrock.list_knowledge_bases()
+        for kb in response.get('knowledgeBaseSummaries', []):
+            if kb['name'] == kb_name:
+                return kb['knowledgeBaseId']
+        
+        # 結果が見つからない場合、ページネーションを処理
+        next_token = response.get('nextToken')
+        while next_token:
+            response = bedrock.list_knowledge_bases(nextToken=next_token)
+            for kb in response.get('knowledgeBaseSummaries', []):
+                if kb['name'] == kb_name:
+                    return kb['knowledgeBaseId']
+            next_token = response.get('nextToken')
+        
+        return None
+    except Exception as e:
+        print(f"Error getting knowledge base ID: {str(e)}")
+        return None
+
+def get_data_source_id(kb_id):
+    """ナレッジベースIDに関連するデータソースIDを取得する"""
+    try:
+        response = bedrock.list_data_sources(knowledgeBaseId=kb_id)
+        if response.get('dataSourceSummaries'):
+            return response['dataSourceSummaries'][0]['dataSourceId']
+        return None
+    except Exception as e:
+        print(f"Error getting data source ID: {str(e)}")
+        return None
+
+def clear_s3_tenant_files(bucket, prefix):
+    """S3バケット内のテナント関連ファイルを削除（フォルダ自体は残す）"""
+    try:
+        # プレフィックス内のオブジェクトを取得
+        bucket_obj = s3_resource.Bucket(bucket)
+        objects_to_delete = []
+        
+        for obj in bucket_obj.objects.filter(Prefix=prefix):
+            # フォルダ自体（末尾がスラッシュ）とplaceholder.txtは削除しない
+            if obj.key != prefix and obj.key != f"{prefix}placeholder.txt":
+                objects_to_delete.append({'Key': obj.key})
+        
+        if objects_to_delete:
+            s3.delete_objects(
+                Bucket=bucket,
+                Delete={'Objects': objects_to_delete}
+            )
+            print(f"Deleted {len(objects_to_delete)} files from {bucket}/{prefix}")
+        else:
+            print(f"No files to delete in {bucket}/{prefix}")
+            
+    except Exception as e:
+        print(f"Error clearing S3 tenant files: {str(e)}")
+
+def sync_data_source(kb_id, ds_id):
+    """データソースを同期させる"""
+    try:
+        bedrock.start_ingestion_job(
+            knowledgeBaseId=kb_id,
+            dataSourceId=ds_id
+        )
+        print(f"Started ingestion job for knowledge base {kb_id}, data source {ds_id}")
+    except Exception as e:
+        print(f"Error syncing data source: {str(e)}")
+
+def wait_for_sync_completion(kb_id, ds_id, max_wait_time=300, check_interval=10):
+    """同期ジョブの完了を待つ"""
+    start_time = time.time()
+    while time.time() - start_time < max_wait_time:
+        try:
+            response = bedrock.list_ingestion_jobs(
+                knowledgeBaseId=kb_id,
+                dataSourceId=ds_id,
+                maxResults=1
+            )
+            
+            if response.get('ingestionJobSummaries'):
+                status = response['ingestionJobSummaries'][0]['status']
+                if status == 'COMPLETE':
+                    print(f"Ingestion job completed successfully")
+                    return True
+                elif status in ['FAILED', 'STOPPED']:
+                    print(f"Ingestion job {status}")
+                    return False
+                else:
+                    print(f"Ingestion job status: {status}, waiting...")
+            else:
+                print("No ingestion jobs found")
+                return False
+                
+        except Exception as e:
+            print(f"Error checking ingestion job status: {str(e)}")
+            return False
+            
+        time.sleep(check_interval)
+    
+    print(f"Timed out waiting for ingestion job completion after {max_wait_time} seconds")
+    return False
+
+def delete_data_source(kb_id, ds_id):
+    """データソースを削除する"""
+    try:
+        bedrock.delete_data_source(
+            knowledgeBaseId=kb_id,
+            dataSourceId=ds_id
+        )
+        print(f"Deleted data source {ds_id} from knowledge base {kb_id}")
+        
+        # データソースの削除が完了するまで待機
+        wait_for_resource_deletion(
+            lambda: check_data_source_exists(kb_id, ds_id),
+            "data source",
+            max_wait_time=180
+        )
+    except Exception as e:
+        print(f"Error deleting data source: {str(e)}")
+
+def check_data_source_exists(kb_id, ds_id):
+    """データソースが存在するかチェック"""
+    try:
+        bedrock.get_data_source(
+            knowledgeBaseId=kb_id,
+            dataSourceId=ds_id
+        )
+        return True
+    except bedrock.exceptions.ResourceNotFoundException:
+        return False
+    except Exception as e:
+        print(f"Error checking data source existence: {str(e)}")
+        return False
+
+def delete_knowledge_base(kb_id):
+    """ナレッジベースを削除する"""
+    try:
+        bedrock.delete_knowledge_base(knowledgeBaseId=kb_id)
+        print(f"Deleted knowledge base {kb_id}")
+        
+        # ナレッジベースの削除が完了するまで待機
+        wait_for_resource_deletion(
+            lambda: check_knowledge_base_exists(kb_id),
+            "knowledge base",
+            max_wait_time=180
+        )
+    except Exception as e:
+        print(f"Error deleting knowledge base: {str(e)}")
+
+def check_knowledge_base_exists(kb_id):
+    """ナレッジベースが存在するかチェック"""
+    try:
+        bedrock.get_knowledge_base(knowledgeBaseId=kb_id)
+        return True
+    except bedrock.exceptions.ResourceNotFoundException:
+        return False
+    except Exception as e:
+        print(f"Error checking knowledge base existence: {str(e)}")
+        return False
+
+def wait_for_resource_deletion(check_func, resource_name, max_wait_time=180, check_interval=5):
+    """リソースの削除完了を待つ"""
+    start_time = time.time()
+    while time.time() - start_time < max_wait_time:
+        if not check_func():
+            print(f"{resource_name} deletion confirmed")
+            return True
+        print(f"Waiting for {resource_name} deletion...")
+        time.sleep(check_interval)
+    
+    print(f"Timed out waiting for {resource_name} deletion")
+    return False
+
+def delete_rds_table(full_table_name):
+    """RDSテーブルを削除する"""
+    try:
+        rds.execute_statement(
+            secretArn=SECRET_ARN,
+            resourceArn=CLUSTER_ARN,
+            database=DATABASE_NAME,
+            sql=f"DROP TABLE IF EXISTS {full_table_name}"
+        )
+        print(f"Deleted RDS table {full_table_name}")
+    except Exception as e:
+        print(f"Error deleting RDS table: {str(e)}")
+
+def delete_s3_tenant_folder(bucket, prefix):
+    """S3バケット内のテナントフォルダを完全に削除"""
+    try:
+        bucket_obj = s3_resource.Bucket(bucket)
+        bucket_obj.objects.filter(Prefix=prefix).delete()
+        print(f"Deleted all objects with prefix {prefix} from bucket {bucket}")
+    except Exception as e:
+        print(f"Error deleting S3 tenant folder: {str(e)}") 
