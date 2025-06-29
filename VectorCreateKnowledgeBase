@@ -1,0 +1,207 @@
+import boto3
+import os
+import uuid
+import botocore
+
+rds = boto3.client('rds-data')
+s3 = boto3.client('s3')
+bedrock = boto3.client('bedrock-agent')
+
+# 定数（共通設定）
+CLUSTER_ARN = "arn:aws:rds:ap-northeast-1:384873654994:cluster:knowledge-base-vectordb"
+SECRET_ARN = "arn:aws:secretsmanager:ap-northeast-1:384873654994:secret:bedrock_access_aurora_serverless2-NANTOKA"
+DATABASE_NAME = "knowledge_base_aurora"
+SCHEMA_NAME = "bedrock_knowledgebase"
+S3_BUCKET = "rag-knowledge-base-aurora"
+ROLE_ARN = "arn:aws:iam::384873654994:role/TestKnowledgeBaseRoleNext"
+
+def lambda_handler(event, context):
+    tenant_id = event['tenant_id']  # e.g., "00001"
+    table_name = f"dodeuce_{tenant_id}"
+    full_table_name = f"{SCHEMA_NAME}.{table_name}"
+    kb_name = f"knowledge-base-aurora-serverless-{tenant_id}"
+    ds_name = f"knowledge-base-aurora-serverless-data-source-{tenant_id}"
+    s3_prefix = f"{tenant_id}/"
+    s3_uri = f"s3://{S3_BUCKET}/{s3_prefix}"
+
+    # S3バケットの存在確認と作成
+    try:
+        s3.head_bucket(Bucket=S3_BUCKET)
+        print(f"S3 bucket {S3_BUCKET} already exists")
+    except botocore.exceptions.ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code')
+        if error_code == '404' or error_code == 'NoSuchBucket':
+            print(f"S3 bucket {S3_BUCKET} does not exist, creating...")
+            try:
+                # バケット作成（リージョン指定）
+                region = boto3.session.Session().region_name
+                if region == 'us-east-1':
+                    s3.create_bucket(Bucket=S3_BUCKET)
+                else:
+                    s3.create_bucket(
+                        Bucket=S3_BUCKET,
+                        CreateBucketConfiguration={'LocationConstraint': region}
+                    )
+                print(f"Created S3 bucket {S3_BUCKET}")
+                
+                # バケット作成の確認
+                try:
+                    location = s3.get_bucket_location(Bucket=S3_BUCKET)
+                    print(f"Bucket {S3_BUCKET} created in region: {location.get('LocationConstraint') or 'us-east-1'}")
+                    
+                    # バケットのリストを取得して確認
+                    buckets = s3.list_buckets()
+                    bucket_names = [bucket['Name'] for bucket in buckets['Buckets']]
+                    if S3_BUCKET in bucket_names:
+                        print(f"Bucket {S3_BUCKET} is visible in the bucket list")
+                    else:
+                        print(f"Warning: Bucket {S3_BUCKET} was created but is not visible in the bucket list")
+                except Exception as check_error:
+                    print(f"Error checking bucket details: {str(check_error)}")
+                
+                # バケットポリシーの設定（オプション）
+                # ここにバケットポリシー設定コードを追加
+            except Exception as create_error:
+                print(f"Failed to create S3 bucket: {str(create_error)}")
+                raise create_error
+        else:
+            print(f"Error checking S3 bucket: {str(e)}")
+            raise e
+
+    # S3フォルダ（プレフィックス）の作成
+    # S3にはフォルダの概念がないため、末尾にスラッシュを付けた0バイトオブジェクトを作成することで
+    # コンソール上でフォルダとして表示されるようにします
+    folder_key = f"{s3_prefix}"
+    if not folder_key.endswith('/'):
+        folder_key += '/'
+    
+    try:
+        s3.put_object(Bucket=S3_BUCKET, Key=folder_key, Body='')
+        print(f"Created empty folder {folder_key} in bucket {S3_BUCKET}")
+    except Exception as folder_error:
+        print(f"Error creating folder: {str(folder_error)}")
+        # フォルダ作成に失敗してもプロセスは続行
+
+    # 1. テーブル存在確認
+    check_result = rds.execute_statement(
+        secretArn=SECRET_ARN,
+        resourceArn=CLUSTER_ARN,
+        database=DATABASE_NAME,
+        sql=f"""
+        SELECT EXISTS (
+            SELECT FROM pg_tables
+            WHERE schemaname = '{SCHEMA_NAME}' AND tablename = '{table_name}'
+        )
+        """
+    )
+
+    table_exists = check_result['records'][0][0]['booleanValue']
+
+    if not table_exists:
+        # 1. RDS: テーブル作成（存在しない場合のみ）
+        sqls = [
+            f"CREATE TABLE {full_table_name} (id uuid PRIMARY KEY, embedding vector(1024), chunks text, metadata jsonb, provided_metadata jsonb)",
+            f"CREATE INDEX ON {full_table_name} USING hnsw (embedding vector_cosine_ops)",
+            f"CREATE INDEX ON {full_table_name} USING gin (to_tsvector('simple', chunks))",
+            f"CREATE INDEX ON {full_table_name} USING gin (metadata)",
+            f"CREATE INDEX ON {full_table_name} USING gin (provided_metadata)"
+        ]
+        for sql in sqls:
+            rds.execute_statement(
+                secretArn=SECRET_ARN,
+                resourceArn=CLUSTER_ARN,
+                database=DATABASE_NAME,
+                sql=sql
+            )
+
+    # 2. S3プレフィックス（ダミーファイル）作成
+    dummy_key = f"{s3_prefix}placeholder.txt"
+    s3.put_object(Bucket=S3_BUCKET, Key=dummy_key, Body="placeholder")
+
+    # 3. Knowledge Base 作成
+    kb_response = bedrock.create_knowledge_base(
+        name=kb_name,
+        roleArn=ROLE_ARN,
+        knowledgeBaseConfiguration={
+            "type": "VECTOR",
+            "vectorKnowledgeBaseConfiguration": {
+                "embeddingModelArn": "arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0",
+                'embeddingModelConfiguration': {
+                    'bedrockEmbeddingModelConfiguration': {
+                        'dimensions': 1024,
+                        'embeddingDataType': 'FLOAT32'
+                    }
+                },
+                'supplementalDataStorageConfiguration': {
+                    'storageLocations': [
+                        {
+                            's3Location': {
+                                'uri': 's3://rag-multimedia'
+                            },
+                            'type': 'S3'
+                        },
+                    ]
+                }
+
+
+
+            }
+        },
+        storageConfiguration={
+            "type": "RDS",
+            "rdsConfiguration": {
+                "resourceArn": CLUSTER_ARN,
+                "databaseName": DATABASE_NAME,
+                "tableName": full_table_name,
+                "credentialsSecretArn": SECRET_ARN,
+                "fieldMapping": {
+                    "primaryKeyField": "id",
+                    "vectorField": "embedding",
+                    "textField": "chunks",
+                    "metadataField": "metadata",
+                    "customMetadataField": "provided_metadata"
+                }
+            }
+        }
+    )
+    knowledge_base_id = kb_response["knowledgeBase"]["knowledgeBaseId"]
+
+    # 4. データソース作成
+    bedrock.create_data_source(
+        knowledgeBaseId=knowledge_base_id,
+        name=ds_name,
+        dataDeletionPolicy="DELETE",
+        dataSourceConfiguration={
+            "type": "S3",
+            "s3Configuration": {
+                "bucketArn": f"arn:aws:s3:::{S3_BUCKET}",
+                "inclusionPrefixes": [s3_prefix]
+            }
+        },
+        vectorIngestionConfiguration={
+            "chunkingConfiguration": {
+                "chunkingStrategy": "SEMANTIC",
+                "semanticChunkingConfiguration": {
+                    "maxTokens": 8192,
+                    "bufferSize": 0,
+                    "breakpointPercentileThreshold": 95
+                }
+            },
+            "parsingConfiguration": {
+                "parsingStrategy": "BEDROCK_FOUNDATION_MODEL",
+                "bedrockFoundationModelConfiguration": {
+                    "modelArn": "arn:aws:bedrock:ap-northeast-1:384873654994:inference-profile/apac.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    "parsingModality": "MULTIMODAL"
+                    # "parsingPrompt": {
+                    #     "parsingPromptText": "..."
+                    # }
+                }
+            }
+        },
+        description="Data source for tenant " + tenant_id
+    )
+
+    return {
+        "message": f"Knowledge base and data source created for tenant {tenant_id}.",
+        "knowledgeBaseId": knowledge_base_id
+    }
